@@ -1,17 +1,60 @@
-import { useEffect, useState, useRef } from "react";
-import { motion, useMotionValue, useTransform, useSpring } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { getProducts } from "../services/api";
+import { catalogProducts } from "../data/catalogProducts";
 
-// ── Inline mock (replace with your real import) ──────────────────────────────
-const mockProducts = [
-  { id: 1, name: "Red Velvet Roses", category: "Roses", price: 349, image: "https://images.unsplash.com/photo-1548460607-caef4d2d6f0e?w=400&q=80", rating: 4.8 },
-  { id: 2, name: "Sunset Gerbera Pack", category: "Gerbera", price: 199, image: "https://images.unsplash.com/photo-1453791052107-5c843da62d97?w=400&q=80", rating: 4.5 },
-  { id: 3, name: "Love Bouquet", category: "Bouquet", price: 599, image: "https://images.unsplash.com/photo-1487530811015-780ce0e81958?w=400&q=80", rating: 4.9 },
-  { id: 4, name: "Pink Asiatic Lily", category: "Asiatic Lily", price: 449, image: "https://images.unsplash.com/photo-1490750967868-88df5691cc52?w=400&q=80", rating: 4.7 },
-  { id: 5, name: "White Pearl Roses", category: "Roses", price: 399, image: "https://images.unsplash.com/photo-1518895312237-a9e23508077d?w=400&q=80", rating: 4.6 },
-  { id: 6, name: "Coral Gerbera Bunch", category: "Gerbera", price: 249, image: "https://images.unsplash.com/photo-1516709766524-e1e4a6b2f78b?w=400&q=80", rating: 4.4 },
-];
+const PRODUCTS_CACHE_KEY = "pf_live_products";
 
-// ── Floating petal SVG component ─────────────────────────────────────────────
+const CATEGORY_STYLES = {
+  Roses: { start: "#f6b3c2", end: "#8f1d35", label: "Rose" },
+  Carnations: { start: "#ffd8df", end: "#d95b78", label: "Carnation" },
+  "Asiatic Lilies": { start: "#ffe0b3", end: "#f57c00", label: "Lily" },
+  "Exotic & Novelties": { start: "#f7d06b", end: "#ef6c57", label: "Exotic" },
+  Gerberas: { start: "#ffe082", end: "#f9a825", label: "Gerbera" },
+  Orchids: { start: "#d7c4f3", end: "#7b1fa2", label: "Orchid" },
+  "Oriental Lilies": { start: "#f8bbd0", end: "#c2185b", label: "Lily" },
+  Fillers: { start: "#dcedc8", end: "#689f38", label: "Filler" },
+  "Cut Foliages": { start: "#c8e6c9", end: "#2e7d32", label: "Leaf" },
+  "Hybrid Chrysanthamums": { start: "#fff7bc", end: "#fbc02d", label: "Mum" },
+  "Bouquet & Car Deco Materials": { start: "#d7ccc8", end: "#6d4c41", label: "Deco" },
+};
+
+function buildProductImage(product) {
+  const style = CATEGORY_STYLES[product.category] || {
+    start: "#f6d3da",
+    end: "#a73755",
+    label: "Flora",
+  };
+  const title = (product.name || "Catalog Item").replace(/[<&>]/g, "");
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+      <defs>
+        <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="${style.start}" />
+          <stop offset="100%" stop-color="${style.end}" />
+        </linearGradient>
+      </defs>
+      <rect width="800" height="600" rx="36" fill="url(#grad)" />
+      <circle cx="650" cy="110" r="92" fill="rgba(255,255,255,0.18)" />
+      <circle cx="110" cy="510" r="116" fill="rgba(255,255,255,0.12)" />
+      <text x="72" y="134" fill="rgba(255,255,255,0.82)" font-family="Georgia, serif" font-size="40">${style.label}</text>
+      <text x="72" y="320" fill="#ffffff" font-family="Georgia, serif" font-size="58" font-weight="700">${title}</text>
+    </svg>
+  `)}`;
+}
+
+function normalizeProduct(product) {
+  return {
+    ...product,
+    price: Number(product.price || 0),
+    category: product.category || "Floral",
+    description: product.description || `${product.name} from our floral catalog.`,
+    image: buildProductImage(product),
+    isFromAdmin: Boolean(product.isFromAdmin),
+  };
+}
+
 function FloatingPetal({ style }) {
   return (
     <motion.div
@@ -23,7 +66,6 @@ function FloatingPetal({ style }) {
   );
 }
 
-// ── 3-D tilt card ─────────────────────────────────────────────────────────────
 function TiltCard({ children }) {
   const ref = useRef(null);
   const x = useMotionValue(0);
@@ -33,12 +75,16 @@ function TiltCard({ children }) {
   const glareX = useTransform(x, [-0.5, 0.5], ["0%", "100%"]);
   const glareY = useTransform(y, [-0.5, 0.5], ["0%", "100%"]);
 
-  function onMove(e) {
+  function onMove(event) {
     const rect = ref.current.getBoundingClientRect();
-    x.set((e.clientX - rect.left) / rect.width - 0.5);
-    y.set((e.clientY - rect.top) / rect.height - 0.5);
+    x.set((event.clientX - rect.left) / rect.width - 0.5);
+    y.set((event.clientY - rect.top) / rect.height - 0.5);
   }
-  function onLeave() { x.set(0); y.set(0); }
+
+  function onLeave() {
+    x.set(0);
+    y.set(0);
+  }
 
   return (
     <motion.div
@@ -49,7 +95,6 @@ function TiltCard({ children }) {
       className="tilt-wrapper"
     >
       {children}
-      {/* glare overlay */}
       <motion.div
         className="glare"
         style={{
@@ -60,9 +105,10 @@ function TiltCard({ children }) {
   );
 }
 
-// ── Product Card ──────────────────────────────────────────────────────────────
 function ProductCard({ product, addToCart }) {
   const [added, setAdded] = useState(false);
+  const priceLabel = product.price > 0 ? `Rs ${product.price}` : "Price on request";
+  const sourceLabel = product.isFromAdmin ? "Live item" : "Catalog item";
 
   function handleAdd() {
     addToCart(product);
@@ -76,19 +122,20 @@ function ProductCard({ product, addToCart }) {
         <div className="card-img-wrap">
           <img src={product.image} alt={product.name} className="card-img" />
           <div className="img-overlay" />
-          <span className="badge">₹{product.price}</span>
+          <span className="badge">{priceLabel}</span>
         </div>
         <div className="card-body">
           <p className="card-cat">{product.category}</p>
           <h3 className="card-title">{product.name}</h3>
+          <p className="card-desc">{product.description}</p>
           <div className="card-footer">
-            <span className="stars">{"★".repeat(Math.round(product.rating))}<span className="star-val"> {product.rating}</span></span>
+            <span className="stock-note">{sourceLabel}</span>
             <motion.button
               className={`btn-add ${added ? "btn-added" : ""}`}
               whileTap={{ scale: 0.92 }}
               onClick={handleAdd}
             >
-              {added ? "✓ Added" : "+ Cart"}
+              {added ? "Added" : "Add to cart"}
             </motion.button>
           </div>
         </div>
@@ -97,32 +144,92 @@ function ProductCard({ product, addToCart }) {
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Products({ cart = [], setCart = () => {} }) {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState(() => {
+    try {
+      const saved = localStorage.getItem(PRODUCTS_CACHE_KEY);
+      if (!saved) {
+        return catalogProducts.map((product) => normalizeProduct({ ...product, isFromAdmin: false }));
+      }
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed)
+        ? parsed.map(normalizeProduct)
+        : catalogProducts.map((product) => normalizeProduct({ ...product, isFromAdmin: false }));
+    } catch {
+      return catalogProducts.map((product) => normalizeProduct({ ...product, isFromAdmin: false }));
+    }
+  });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
-  const [locationFilter, setLocationFilter] = useState("Tambaram");
+  const hasProductsRef = useRef(products.length > 0);
 
   useEffect(() => {
-    // Replace mock with: getProducts().then(res => setProducts(res.data))
-    setTimeout(() => { setProducts(mockProducts); setLoading(false); }, 800);
+    hasProductsRef.current = products.length > 0;
+  }, [products]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadProducts() {
+      setLoading(true);
+
+      try {
+        const response = await getProducts();
+        if (!ignore) {
+          const nextProducts = Array.isArray(response.data)
+            ? response.data.map((product) => normalizeProduct({ ...product, isFromAdmin: true }))
+            : [];
+          setProducts(nextProducts);
+          localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(nextProducts));
+          setError(nextProducts.length > 0 ? "" : "No products found in Django admin.");
+        }
+      } catch (err) {
+        if (!ignore) {
+          if (!hasProductsRef.current) {
+            setProducts(catalogProducts.map((product) => normalizeProduct({ ...product, isFromAdmin: false })));
+          }
+          setError(
+            hasProductsRef.current
+              ? "Showing saved products. Start the backend server to fetch new admin changes."
+              : "Showing catalog fallback. Start the backend server to sync Django admin changes."
+          );
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadProducts();
+
+    function handleFocus() {
+      loadProducts();
+    }
+
+    window.addEventListener("focus", handleFocus);
+    const refreshTimer = window.setInterval(loadProducts, 15000);
+
+    return () => {
+      ignore = true;
+      window.removeEventListener("focus", handleFocus);
+      window.clearInterval(refreshTimer);
+    };
   }, []);
 
   const addToCart = (product) => {
-    setCart(prev => {
-      const exists = prev.find(i => i.id === product.id);
+    setCart((prev) => {
+      const exists = prev.find((item) => item.id === product.id);
       return exists
-        ? prev.map(i => i.id === product.id ? { ...i, qty: (i.qty || 1) + 1 } : i)
+        ? prev.map((item) => (item.id === product.id ? { ...item, qty: (item.qty || 1) + 1 } : item))
         : [...prev, { ...product, qty: 1 }];
     });
   };
 
-  const categories = ["Roses", "Gerbera", "Bouquet", "Asiatic Lily"];
-  const filtered = products.filter(p => !categoryFilter || p.category === categoryFilter);
-
-  const petals = Array.from({ length: 18 }, (_, i) => ({
+  const categories = Array.from(new Set(products.map((product) => product.category).filter(Boolean)));
+  const filtered = products.filter((product) => !categoryFilter || product.category === categoryFilter);
+  const petals = Array.from({ length: 18 }, () => ({
     left: `${Math.random() * 100}%`,
     width: `${12 + Math.random() * 18}px`,
     height: `${16 + Math.random() * 22}px`,
@@ -137,26 +244,20 @@ export default function Products({ cart = [], setCart = () => {} }) {
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=Jost:wght@300;400;500&display=swap');
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-        /* ── kill any global white backgrounds leaking in ── */
         .section-padding { background: transparent !important; }
         .filter-bar, .filter-group { background: transparent !important; background-color: transparent !important; border: none !important; box-shadow: none !important; }
 
         :root {
-          --rose-deep:   #7b1a2e;
-          --rose-mid:    #c0354e;
-          --rose-light:  #f1a0b0;
-          --rose-blush:  #fde8ed;
-          --rose-petal:  #e8536d;
-          --gold:        #d4a84b;
-          --glass-bg:    rgba(255,255,255,0.08);
-          --glass-border:rgba(255,255,255,0.22);
-          --glass-shadow:0 8px 40px rgba(123,26,46,0.25);
+          --rose-deep: #7b1a2e;
+          --rose-mid: #c0354e;
+          --rose-light: #f1a0b0;
+          --rose-petal: #e8536d;
+          --glass-bg: rgba(255,255,255,0.08);
+          --glass-border: rgba(255,255,255,0.22);
         }
 
         body { font-family: 'Jost', sans-serif; }
 
-        /* ── page shell ── */
         .page {
           min-height: 100vh;
           background:
@@ -168,15 +269,16 @@ export default function Products({ cart = [], setCart = () => {} }) {
           padding: calc(var(--nav-height) + 3rem) 2rem 5rem;
         }
 
-        /* noise grain overlay */
         .page::before {
           content: "";
-          position: fixed; inset: 0; z-index: 0; pointer-events: none;
+          position: fixed;
+          inset: 0;
+          z-index: 0;
+          pointer-events: none;
           background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
           opacity: 0.5;
         }
 
-        /* ── floating petals ── */
         .petals-layer { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
         .petal {
           position: absolute;
@@ -187,10 +289,8 @@ export default function Products({ cart = [], setCart = () => {} }) {
           will-change: transform;
         }
 
-        /* ── header ── */
-        .header { position: relative; z-index: 10; text-align: center; margin-bottom: 3.5rem; }
+        .header { position: relative; z-index: 10; text-align: center; margin-bottom: 3rem; }
         .header-eyebrow {
-          font-family: 'Jost', sans-serif;
           font-weight: 300;
           letter-spacing: 0.35em;
           font-size: 0.72rem;
@@ -208,92 +308,79 @@ export default function Products({ cart = [], setCart = () => {} }) {
         }
         .header h2 span { color: var(--rose-petal); }
         .header p {
-          color: rgba(255,255,255,0.5);
+          color: rgba(255,255,255,0.6);
           font-size: 0.95rem;
           margin-top: 0.8rem;
           font-weight: 300;
           letter-spacing: 0.04em;
         }
-
-        /* decorative line */
         .deco-line {
-          display: flex; align-items: center; gap: 1rem;
-          justify-content: center; margin-top: 1.5rem;
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          justify-content: center;
+          margin-top: 1.5rem;
         }
         .deco-line::before, .deco-line::after {
           content: "";
-          flex: 0 0 80px; height: 1px;
+          flex: 0 0 80px;
+          height: 1px;
           background: linear-gradient(90deg, transparent, var(--rose-mid));
         }
         .deco-line::after { background: linear-gradient(90deg, var(--rose-mid), transparent); }
-        .deco-rose { font-size: 1.1rem; }
 
-        /* ── filter bar ── */
         .filter-bar {
-          display: flex; gap: 1rem; flex-wrap: wrap;
-          justify-content: center; margin-bottom: 3rem;
-          position: relative; z-index: 10;
-          background: transparent !important;
-          background-color: transparent !important;
-          border: none !important;
-          box-shadow: none !important;
-          padding: 0 !important;
-          border-radius: 0 !important;
-          width: auto !important;
-          max-width: fit-content !important;
-          margin-left: auto !important;
-          margin-right: auto !important;
+          display: flex;
+          gap: 1rem;
+          flex-wrap: wrap;
+          justify-content: center;
+          margin-bottom: 2rem;
+          position: relative;
+          z-index: 10;
         }
         .filter-glass {
-          display: flex; align-items: center; gap: 0.6rem;
-          padding: 0.55rem 1.2rem;
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          padding: 0.65rem 1.15rem;
           background: rgba(60, 5, 20, 0.55);
           border: 1px solid rgba(255,255,255,0.18);
           backdrop-filter: blur(20px) saturate(1.8);
-          -webkit-backdrop-filter: blur(20px) saturate(1.8);
-          border-radius: 50px;
+          border-radius: 999px;
           box-shadow: 0 4px 24px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.08) inset;
-          transition: border-color 0.3s, background 0.3s;
         }
-        .filter-glass:hover {
-          border-color: var(--rose-petal);
-          background: rgba(80, 10, 30, 0.65);
-        }
-        .filter-glass span { font-size: 1rem; }
         .filter-glass select {
           background: transparent;
           border: none;
           outline: none;
-          color: rgba(255, 255, 255, 0.9);
+          color: rgba(255,255,255,0.9);
           font-family: 'Jost', sans-serif;
-          font-size: 0.85rem;
-          font-weight: 400;
-          letter-spacing: 0.03em;
+          font-size: 0.9rem;
           cursor: pointer;
-          appearance: none;
-          -webkit-appearance: none;
-          min-width: 130px;
+          min-width: 160px;
         }
         .filter-glass select option {
           background: #2d0616;
           color: #fff;
         }
 
-        /* category chips */
         .chip-row {
-          display: flex; gap: 0.6rem; flex-wrap: wrap;
-          justify-content: center; margin-bottom: 2.5rem;
-          position: relative; z-index: 10;
+          display: flex;
+          gap: 0.6rem;
+          flex-wrap: wrap;
+          justify-content: center;
+          margin-bottom: 2.5rem;
+          position: relative;
+          z-index: 10;
         }
         .chip {
-          padding: 0.4rem 1.1rem;
-          border-radius: 50px;
+          padding: 0.42rem 1.1rem;
+          border-radius: 999px;
           font-size: 0.8rem;
-          font-family: 'Jost', sans-serif;
           letter-spacing: 0.06em;
           border: 1px solid var(--glass-border);
           background: var(--glass-bg);
-          color: rgba(255,255,255,0.65);
+          color: rgba(255,255,255,0.72);
           cursor: pointer;
           backdrop-filter: blur(10px);
           transition: all 0.25s;
@@ -305,33 +392,30 @@ export default function Products({ cart = [], setCart = () => {} }) {
           box-shadow: 0 4px 20px rgba(192,53,78,0.4);
         }
 
-        /* ── grid ── */
         .grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
           gap: 2rem;
-          position: relative; z-index: 10;
+          position: relative;
+          z-index: 10;
           max-width: 1300px;
           margin: 0 auto;
         }
-
-        /* ── tilt wrapper ── */
         .tilt-wrapper {
           position: relative;
           border-radius: 20px;
           transform-style: preserve-3d;
-          cursor: pointer;
         }
         .glare {
-          position: absolute; inset: 0;
+          position: absolute;
+          inset: 0;
           border-radius: 20px;
           pointer-events: none;
           z-index: 5;
           transition: background 0.05s;
         }
-
-        /* ── card ── */
         .card {
+          height: 100%;
           background: rgba(255,255,255,0.06);
           border: 1px solid rgba(255,255,255,0.15);
           backdrop-filter: blur(20px) saturate(1.8);
@@ -341,7 +425,6 @@ export default function Products({ cart = [], setCart = () => {} }) {
             0 2px 0 rgba(255,255,255,0.08) inset,
             0 20px 60px rgba(0,0,0,0.45),
             0 4px 20px rgba(192,53,78,0.2);
-          transform: translateZ(0);
           transition: box-shadow 0.3s;
         }
         .tilt-wrapper:hover .card {
@@ -350,48 +433,49 @@ export default function Products({ cart = [], setCart = () => {} }) {
             0 30px 70px rgba(0,0,0,0.55),
             0 8px 35px rgba(192,53,78,0.45);
         }
-
         .card-img-wrap {
-          position: relative; overflow: hidden; height: 220px;
+          position: relative;
+          overflow: hidden;
+          height: 220px;
         }
         .card-img {
-          width: 100%; height: 100%; object-fit: cover;
-          transition: transform 0.55s cubic-bezier(0.25,0.46,0.45,0.94);
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.55s cubic-bezier(0.25, 0.46, 0.45, 0.94);
         }
         .tilt-wrapper:hover .card-img { transform: scale(1.08); }
-
         .img-overlay {
-          position: absolute; inset: 0;
-          background: linear-gradient(
-            180deg,
-            transparent 35%,
-            rgba(20,0,8,0.65) 100%
-          );
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(180deg, transparent 35%, rgba(20,0,8,0.65) 100%);
         }
         .badge {
-          position: absolute; bottom: 12px; right: 14px;
+          position: absolute;
+          bottom: 12px;
+          right: 14px;
           background: linear-gradient(135deg, var(--rose-mid), var(--rose-deep));
           color: #fff;
           font-family: 'Cormorant Garamond', serif;
           font-weight: 700;
           font-size: 1.05rem;
           padding: 0.25rem 0.85rem;
-          border-radius: 50px;
+          border-radius: 999px;
           box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-          letter-spacing: 0.03em;
         }
-
         .card-body {
+          display: flex;
+          flex-direction: column;
+          height: calc(100% - 220px);
           padding: 1.2rem 1.4rem 1.4rem;
           transform: translateZ(30px);
         }
         .card-cat {
-          font-size: 0.7rem;
+          font-size: 0.72rem;
           letter-spacing: 0.2em;
           text-transform: uppercase;
           color: var(--rose-light);
-          font-weight: 400;
-          margin-bottom: 0.35rem;
+          margin-bottom: 0.45rem;
         }
         .card-title {
           font-family: 'Cormorant Garamond', serif;
@@ -399,22 +483,35 @@ export default function Products({ cart = [], setCart = () => {} }) {
           font-weight: 600;
           color: #fff;
           line-height: 1.25;
+          margin-bottom: 0.8rem;
+        }
+        .card-desc {
+          color: rgba(255,255,255,0.72);
+          font-size: 0.92rem;
+          line-height: 1.55;
           margin-bottom: 1rem;
+          flex: 1;
         }
         .card-footer {
-          display: flex; align-items: center; justify-content: space-between;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
         }
-        .stars { color: var(--gold); font-size: 0.82rem; }
-        .star-val { color: rgba(255,255,255,0.55); font-size: 0.78rem; font-family: 'Jost', sans-serif; }
-
+        .stock-note {
+          color: rgba(255,255,255,0.55);
+          font-size: 0.8rem;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+        }
         .btn-add {
-          padding: 0.42rem 1.15rem;
-          border-radius: 50px;
+          padding: 0.48rem 1.15rem;
+          border-radius: 999px;
           border: 1px solid var(--rose-petal);
           background: transparent;
           color: var(--rose-light);
           font-family: 'Jost', sans-serif;
-          font-size: 0.8rem;
+          font-size: 0.84rem;
           letter-spacing: 0.06em;
           cursor: pointer;
           transition: all 0.25s;
@@ -431,39 +528,55 @@ export default function Products({ cart = [], setCart = () => {} }) {
           color: #fff;
         }
 
-        /* ── loading / error ── */
         .center-msg {
-          display: flex; align-items: center; justify-content: center;
-          min-height: 60vh; color: rgba(255,255,255,0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 60vh;
+          color: rgba(255,255,255,0.65);
           font-family: 'Cormorant Garamond', serif;
-          font-size: 1.4rem;
-          letter-spacing: 0.1em;
+          font-size: 1.45rem;
+          letter-spacing: 0.06em;
+          position: relative;
+          z-index: 10;
         }
-        .loading-rose {
-          display: inline-block;
-          animation: spin 2s linear infinite;
-          margin-right: 0.6rem;
+        .sync-banner {
+          max-width: 1300px;
+          margin: 0 auto 1.25rem;
+          padding: 0.85rem 1rem;
+          border-radius: 16px;
+          position: relative;
+          z-index: 10;
+          color: #fff0d9;
+          background: rgba(128, 73, 15, 0.28);
+          border: 1px solid rgba(255, 193, 94, 0.24);
+          backdrop-filter: blur(12px);
+          font-size: 0.92rem;
+          line-height: 1.5;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* ── empty ── */
-        .empty { text-align: center; color: rgba(255,255,255,0.35); padding: 3rem 0; font-size: 1rem; letter-spacing: 0.08em; }
-
-        /* ── cart bubble ── */
+        .empty {
+          text-align: center;
+          color: rgba(255,255,255,0.4);
+          padding: 3rem 0;
+          font-size: 1rem;
+          letter-spacing: 0.08em;
+          position: relative;
+          z-index: 10;
+        }
         .cart-bubble {
-          position: fixed; bottom: 2rem; right: 2rem; z-index: 100;
+          position: fixed;
+          bottom: 2rem;
+          right: 2rem;
+          z-index: 100;
           background: linear-gradient(135deg, var(--rose-mid), var(--rose-deep));
           color: #fff;
-          border-radius: 50px;
+          border-radius: 999px;
           padding: 0.7rem 1.4rem;
-          font-family: 'Jost', sans-serif;
-          font-size: 0.9rem;
+          font-size: 0.92rem;
           font-weight: 500;
           box-shadow: 0 8px 30px rgba(192,53,78,0.55);
           border: 1px solid rgba(255,255,255,0.15);
           backdrop-filter: blur(10px);
-          cursor: default;
-          letter-spacing: 0.04em;
         }
 
         @media (max-width: 900px) {
@@ -474,38 +587,34 @@ export default function Products({ cart = [], setCart = () => {} }) {
           .page { padding: calc(var(--nav-height) + 1.5rem) 0.9rem 4rem; }
           .header { margin-bottom: 2.2rem; }
           .header p { font-size: 0.88rem; line-height: 1.6; }
-          .filter-bar { width: 100% !important; max-width: none !important; }
           .filter-glass { width: 100%; justify-content: space-between; padding: 0.8rem 1rem; }
           .filter-glass select { min-width: 0; width: 100%; }
           .grid { grid-template-columns: 1fr; gap: 1rem; }
-          .card-body { padding: 0.9rem 1rem 1rem; }
-          .card-img-wrap { height: 160px; }
-          .card-footer { align-items: flex-start; gap: 0.75rem; flex-direction: column; }
+          .card-body { height: auto; padding: 1rem; }
+          .card-img-wrap { height: 180px; }
+          .card-footer { flex-direction: column; align-items: stretch; }
           .btn-add { width: 100%; }
-          .cart-bubble { left: 1rem; right: 1rem; bottom: 1rem; text-align: center; padding: 0.8rem 1rem; }
+          .cart-bubble { left: 1rem; right: 1rem; bottom: 1rem; text-align: center; }
         }
       `}</style>
 
-      {/* floating petals */}
       <div className="petals-layer">
-        {petals.map((s, i) => <FloatingPetal key={i} style={s} />)}
+        {petals.map((style, index) => <FloatingPetal key={index} style={style} />)}
       </div>
 
       <div className="page">
-        {/* header */}
         <motion.div
           className="header"
           initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
         >
-          <p className="header-eyebrow">✦ Fresh from the garden ✦</p>
-          <h2>Our <span>Premium</span> Collection</h2>
-          <p>Handpicked blooms, rare bouquets & exotic arrangements — delivered fresh.</p>
-          <div className="deco-line"><span className="deco-rose">🌹</span></div>
+          <p className="header-eyebrow">Fresh from the catalog</p>
+          <h2>Our <span>Shop</span> Collection</h2>
+          <p>All available products are now grouped by the categories from your Southern Flora PDF.</p>
+          <div className="deco-line" />
         </motion.div>
 
-        {/* filters */}
         <motion.div
           className="filter-bar"
           initial={{ opacity: 0, y: 20 }}
@@ -513,44 +622,46 @@ export default function Products({ cart = [], setCart = () => {} }) {
           transition={{ duration: 0.6, delay: 0.2 }}
         >
           <div className="filter-glass">
-            <span>📍</span>
-            <select value={locationFilter} onChange={e => setLocationFilter(e.target.value)}>
-              <option value="Chennai">All Chennai</option>
-              <option value="Tambaram">West Tambaram</option>
-              <option value="Nearby">Nearby Shops</option>
-            </select>
-          </div>
-          <div className="filter-glass">
-            <span>💐</span>
-            <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+            <span>Category</span>
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
               <option value="">All Categories</option>
-              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
             </select>
           </div>
         </motion.div>
 
-        {/* category chips */}
         <motion.div
           className="chip-row"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.35 }}
         >
-          <span className={`chip ${categoryFilter === "" ? "active" : ""}`} onClick={() => setCategoryFilter("")}>All</span>
-          {categories.map(c => (
+          <span className={`chip ${categoryFilter === "" ? "active" : ""}`} onClick={() => setCategoryFilter("")}>
+            All
+          </span>
+          {categories.map((category) => (
             <span
-              key={c}
-              className={`chip ${categoryFilter === c ? "active" : ""}`}
-              onClick={() => setCategoryFilter(c)}
-            >{c}</span>
+              key={category}
+              className={`chip ${categoryFilter === category ? "active" : ""}`}
+              onClick={() => setCategoryFilter(category)}
+            >
+              {category}
+            </span>
           ))}
         </motion.div>
 
-        {/* content */}
-        {loading ? (
-          <div className="center-msg"><span className="loading-rose">🌸</span> Gathering fresh petals…</div>
-        ) : error ? (
-          <div className="center-msg">⚠ {error}</div>
+        {error && products.length > 0 && (
+          <div className="sync-banner">{error}</div>
+        )}
+
+        {loading && products.length === 0 ? (
+          <div className="center-msg">Loading catalog...</div>
+        ) : error && products.length === 0 ? (
+          <div className="center-msg">{error}</div>
         ) : (
           <>
             <motion.div
@@ -559,15 +670,20 @@ export default function Products({ cart = [], setCart = () => {} }) {
               animate="visible"
               variants={{
                 hidden: {},
-                visible: { transition: { staggerChildren: 0.09 } }
+                visible: { transition: { staggerChildren: 0.08 } },
               }}
             >
-              {filtered.map(product => (
+              {filtered.map((product) => (
                 <motion.div
                   key={product.id}
                   variants={{
                     hidden: { opacity: 0, y: 35, scale: 0.95 },
-                    visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] } }
+                    visible: {
+                      opacity: 1,
+                      y: 0,
+                      scale: 1,
+                      transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] },
+                    },
                   }}
                 >
                   <ProductCard product={product} addToCart={addToCart} />
@@ -576,13 +692,12 @@ export default function Products({ cart = [], setCart = () => {} }) {
             </motion.div>
 
             {filtered.length === 0 && (
-              <p className="empty">🌷 No blooms found in this category.</p>
+              <p className="empty">No products found in this category.</p>
             )}
           </>
         )}
       </div>
 
-      {/* cart bubble */}
       {cart.length > 0 && (
         <motion.div
           className="cart-bubble"
@@ -590,7 +705,8 @@ export default function Products({ cart = [], setCart = () => {} }) {
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 300 }}
         >
-          🛒 {cart.reduce((s, i) => s + (i.qty || 1), 0)} item{cart.reduce((s, i) => s + (i.qty || 1), 0) !== 1 ? "s" : ""}
+          Cart: {cart.reduce((sum, item) => sum + (item.qty || 1), 0)} item
+          {cart.reduce((sum, item) => sum + (item.qty || 1), 0) !== 1 ? "s" : ""}
         </motion.div>
       )}
     </>

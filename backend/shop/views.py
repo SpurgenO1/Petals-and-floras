@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework import status
 import re
 
+from .catalog import CATALOG_PRODUCTS
 from .mongo import get_orders_collection, get_products_collection
 from .models import Order, Product
 from .serializers import (
@@ -159,7 +160,7 @@ def get_products(request):
             "price": int(item.price),
             "old_price": None,
             "description": sanitize_string(item.description, 500),
-            "category": "Floral",
+            "category": sanitize_string(item.category or "Floral", 50),
         }
         for item in Product.objects.all().order_by("id")[:200]
     ]
@@ -179,7 +180,20 @@ def get_products(request):
                     }
                 )
         except PyMongoError:
-            return Response({"error": "Database error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            products = []
+
+    if not products:
+        products = [
+            {
+                "id": item["id"],
+                "name": sanitize_string(item["name"], 100),
+                "price": int(item["price"]),
+                "old_price": item["old_price"],
+                "description": sanitize_string(item["description"], 500),
+                "category": sanitize_string(item["category"], 50),
+            }
+            for item in CATALOG_PRODUCTS
+        ]
 
     serializer = ProductSerializer(products, many=True)
     return Response(serializer.data)
