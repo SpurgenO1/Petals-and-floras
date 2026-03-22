@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 
 class Product(models.Model):
@@ -20,6 +21,7 @@ class Order(models.Model):
         (STATUS_CANCELLED, "Cancelled"),
     ]
 
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="orders")
     name = models.CharField(max_length=100)
     phone = models.CharField(max_length=15)
     address = models.TextField()

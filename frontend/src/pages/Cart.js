@@ -94,7 +94,7 @@ function CartItem({ item, onRemove, index }) {
 }
 
 // ── Main Cart ─────────────────────────────────────────────────────────────────
-export default function Cart({ cart = [], removeFromCart = () => {} }) {
+export default function Cart({ cart = [], removeFromCart = () => {}, authUser = null }) {
   const total = cart.reduce(
     (sum, item) => sum + Number(item.price || 0) * Number(item.qty || 1),
     0
@@ -436,8 +436,8 @@ export default function Cart({ cart = [], removeFromCart = () => {} }) {
                 </div>
 
                 <motion.div whileTap={{ scale: 0.98 }}>
-                  <Link to="/checkout" className="ct-checkout-btn">
-                    Proceed to Checkout →
+                  <Link to={authUser ? "/checkout" : "/login"} className="ct-checkout-btn">
+                    {authUser ? "Proceed to Checkout →" : "Login to Checkout →"}
                   </Link>
                 </motion.div>
               </div>

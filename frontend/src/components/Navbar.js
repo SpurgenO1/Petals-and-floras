@@ -3,10 +3,12 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import logoMark from "../assets/petals-floras-logo.png";
 
-export default function Navbar({ cartCount = 0 }) {
+export default function Navbar({ cartCount = 0, authUser = null, onLogout = () => {} }) {
   const [scrolled, setScrolled] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(true);
   const location = useLocation();
 
   useEffect(() => {
@@ -25,6 +27,20 @@ export default function Navbar({ cartCount = 0 }) {
   }, []);
 
   useEffect(() => setMenuOpen(false), [location]);
+  useEffect(() => {
+    if (authUser) {
+      setShowLoginPrompt(false);
+    }
+  }, [authUser]);
+
+  const handleLogoutClick = async () => {
+    setLoggingOut(true);
+    try {
+      await onLogout();
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   const links = [
     { to: "/", label: "Home" },
@@ -58,18 +74,29 @@ export default function Navbar({ cartCount = 0 }) {
           background: rgba(18, 2, 9, 0.72);
           backdrop-filter: blur(22px) saturate(1.8);
           -webkit-backdrop-filter: blur(22px) saturate(1.8);
-          border-bottom: 1px solid rgba(255,255,255,0.1);
-          box-shadow: 0 4px 30px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.06) inset;
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+          box-shadow: 0 10px 28px rgba(0,0,0,0.32);
           font-family: 'Jost', sans-serif;
           will-change: transform;
+        }
+
+        .nb-nav::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 100%;
+          height: 18px;
+          pointer-events: none;
+          background: linear-gradient(180deg, rgba(18, 2, 9, 0.82) 0%, rgba(18, 2, 9, 0.42) 48%, rgba(18, 2, 9, 0) 100%);
         }
 
         .nb-nav.nb-scrolled {
           background: rgba(18, 2, 9, 0.88);
           backdrop-filter: blur(22px) saturate(1.8);
           -webkit-backdrop-filter: blur(22px) saturate(1.8);
-          border-bottom: 1px solid rgba(255,255,255,0.1);
-          box-shadow: 0 4px 30px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.06) inset;
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+          box-shadow: 0 10px 28px rgba(0,0,0,0.36);
         }
 
         .nb-nav.nb-hidden { transform: translateY(-110%); }
@@ -171,6 +198,59 @@ export default function Navbar({ cartCount = 0 }) {
           color: #fff;
         }
 
+        .nb-auth {
+          display: flex;
+          align-items: center;
+          gap: 0.55rem;
+          margin-left: 0.75rem;
+        }
+
+        .nb-auth-chip,
+        .nb-auth-link,
+        .nb-auth-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          min-height: 36px;
+          padding: 0.45rem 0.95rem;
+          font-size: 0.76rem;
+          letter-spacing: 0.06em;
+          text-decoration: none;
+          transition: all 0.22s ease;
+        }
+
+        .nb-auth-chip {
+          background: rgba(255,255,255,0.07);
+          border: 1px solid rgba(255,255,255,0.12);
+          color: rgba(255,255,255,0.82);
+          max-width: 180px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .nb-auth-link {
+          background: linear-gradient(135deg, rgba(232,83,109,0.95), rgba(123,26,46,0.95));
+          color: #fff;
+          border: 1px solid rgba(255,255,255,0.08);
+          box-shadow: 0 10px 24px rgba(192,53,78,0.28);
+        }
+
+        .nb-auth-button {
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.04);
+          color: rgba(255,255,255,0.82);
+          cursor: pointer;
+          font-family: inherit;
+        }
+
+        .nb-auth-link:hover,
+        .nb-auth-button:hover {
+          transform: translateY(-1px);
+          color: #fff;
+        }
+
         .nb-burger {
           display: none;
           flex-direction: column; gap: 5px;
@@ -220,21 +300,86 @@ export default function Navbar({ cartCount = 0 }) {
           background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
         }
 
+        .nb-login-prompt {
+          position: fixed;
+          top: 84px;
+          right: 1.2rem;
+          z-index: 995;
+          width: min(320px, calc(100vw - 2rem));
+          padding: 0.95rem 1rem;
+          border-radius: 18px;
+          background: rgba(18, 2, 9, 0.92);
+          border: 1px solid rgba(255,255,255,0.12);
+          box-shadow: 0 18px 36px rgba(0,0,0,0.28);
+          color: #fff;
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+        }
+        .nb-login-prompt-title {
+          font-size: 0.86rem;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--rose-light);
+          margin-bottom: 0.3rem;
+        }
+        .nb-login-prompt-copy {
+          font-size: 0.88rem;
+          color: rgba(255,255,255,0.74);
+          line-height: 1.55;
+          margin-bottom: 0.8rem;
+        }
+        .nb-login-prompt-actions {
+          display: flex;
+          gap: 0.55rem;
+          align-items: center;
+        }
+        .nb-login-prompt-link,
+        .nb-login-prompt-dismiss {
+          min-height: 34px;
+          border-radius: 999px;
+          padding: 0.45rem 0.85rem;
+          font-size: 0.76rem;
+          letter-spacing: 0.05em;
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .nb-login-prompt-link {
+          background: linear-gradient(135deg, rgba(232,83,109,0.96), rgba(123,26,46,0.96));
+          color: #fff;
+          border: 1px solid rgba(255,255,255,0.08);
+        }
+        .nb-login-prompt-dismiss {
+          background: rgba(255,255,255,0.04);
+          color: rgba(255,255,255,0.76);
+          border: 1px solid rgba(255,255,255,0.12);
+          cursor: pointer;
+          font-family: inherit;
+        }
+
         @media (max-width: 900px) {
           .nb-nav { padding: 0 1rem; }
           .nb-brand { gap: 0.5rem; font-size: 1.05rem; }
           .nb-brand-badge { width: 34px; height: 44px; }
           .nb-link { padding: 0.35rem 0.65rem; font-size: 0.76rem; }
           .nb-cart { padding: 0.38rem 0.9rem; font-size: 0.76rem; }
+          .nb-auth-chip { max-width: 130px; }
         }
 
         @media (max-width: 768px) {
           .nb-links { display: none; }
           .nb-burger { display: flex; }
-          .nb-cart { display: none; }
+          .nb-cart, .nb-auth { display: none; }
           .nb-nav { height: 60px; }
           .nb-drawer { top: 60px; }
           .nb-brand-name { font-size: 0.98rem; }
+          .nb-login-prompt {
+            top: 72px;
+            right: 0.75rem;
+            left: 0.75rem;
+            width: auto;
+          }
         }
       `}</style>
 
@@ -272,6 +417,26 @@ export default function Navbar({ cartCount = 0 }) {
               </motion.span>
             </AnimatePresence>
           </Link>
+
+          <div className="nb-auth">
+            {authUser ? (
+              <>
+                <span className="nb-auth-chip">{authUser.name || authUser.email}</span>
+                <button
+                  type="button"
+                  className="nb-auth-button"
+                  onClick={handleLogoutClick}
+                  disabled={loggingOut}
+                >
+                  {loggingOut ? "Logging Out..." : "Logout"}
+                </button>
+              </>
+            ) : (
+              <Link to="/login" className="nb-auth-link">
+                Login
+              </Link>
+            )}
+          </div>
         </div>
 
         <button
@@ -282,6 +447,33 @@ export default function Navbar({ cartCount = 0 }) {
           <span /><span /><span />
         </button>
       </nav>
+
+      <AnimatePresence>
+        {!authUser && showLoginPrompt && location.pathname !== "/login" && (
+          <motion.div
+            className="nb-login-prompt"
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+          >
+            <div className="nb-login-prompt-title">Login to Order</div>
+            <div className="nb-login-prompt-copy">
+              Customers need to login before placing an order or starting checkout.
+            </div>
+            <div className="nb-login-prompt-actions">
+              <Link to="/login" className="nb-login-prompt-link">Login Now</Link>
+              <button
+                type="button"
+                className="nb-login-prompt-dismiss"
+                onClick={() => setShowLoginPrompt(false)}
+              >
+                Close
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {menuOpen && (
@@ -306,6 +498,26 @@ export default function Navbar({ cartCount = 0 }) {
               Cart
               <span className="nb-cart-badge" style={{ marginLeft: "auto" }}>{cartCount}</span>
             </Link>
+            <div className="nb-drawer-divider" />
+            {authUser ? (
+              <>
+                <div className="nb-drawer-link" style={{ cursor: "default" }}>
+                  {authUser.name || authUser.email}
+                </div>
+                <button
+                  type="button"
+                  className="nb-drawer-link"
+                  onClick={handleLogoutClick}
+                  style={{ background: "transparent", border: "none", textAlign: "left" }}
+                >
+                  {loggingOut ? "Logging Out..." : "Logout"}
+                </button>
+              </>
+            ) : (
+              <Link to="/login" className={`nb-drawer-link ${location.pathname === "/login" ? "nb-active" : ""}`}>
+                Login
+              </Link>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

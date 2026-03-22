@@ -1,5 +1,6 @@
 from rest_framework import serializers
 import re
+from django.contrib.auth.models import User
 
 
 class ProductSerializer(serializers.Serializer):
@@ -67,3 +68,33 @@ class OrderSerializer(serializers.Serializer):
         if len(value) > 100:
             raise serializers.ValidationError("Too many items in order")
         return value
+
+
+class AuthUserSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    username = serializers.CharField(read_only=True)
+    email = serializers.EmailField(read_only=True)
+    name = serializers.CharField(read_only=True)
+
+
+class RegisterSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100)
+    email = serializers.EmailField(max_length=254)
+    password = serializers.CharField(min_length=6, max_length=128, write_only=True)
+
+    def validate_name(self, value):
+        value = value.strip()
+        if len(value) < 2:
+            raise serializers.ValidationError("Name is too short")
+        return value
+
+    def validate_email(self, value):
+        email = value.strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError("An account with this email already exists")
+        return email
+
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=254)
+    password = serializers.CharField(max_length=128, write_only=True)

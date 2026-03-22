@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef } from "react";
+import { Link } from "react-router-dom";
 import { motion, useMotionValue, useTransform, useSpring, AnimatePresence } from "framer-motion";
 import { createOrder, createPaymentOrder } from "../services/api";
 
@@ -102,7 +103,7 @@ function CartRow({ item, index }) {
 }
 
 // ── Main Checkout ─────────────────────────────────────────────────────────────
-export default function Checkout({ cart = [], clearCart = () => {} }) {
+export default function Checkout({ cart = [], clearCart = () => {}, authUser = null }) {
   const [form, setForm] = useState(initialFormState);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -124,6 +125,86 @@ export default function Checkout({ cart = [], clearCart = () => {} }) {
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
+  if (!authUser) {
+    return (
+      <>
+        <style>{`
+          .checkout-auth-wall {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: calc(var(--nav-height) + 2rem) 1rem 3rem;
+            background:
+              radial-gradient(ellipse 80% 60% at 15% 10%, rgba(192,53,78,0.28) 0%, transparent 55%),
+              radial-gradient(ellipse 60% 55% at 85% 90%, rgba(123,26,46,0.38) 0%, transparent 55%),
+              radial-gradient(ellipse 100% 100% at 50% 50%, #1a0510 0%, #0d0007 100%);
+          }
+          .checkout-auth-card {
+            width: min(100%, 520px);
+            padding: 2rem;
+            border-radius: 24px;
+            background: rgba(60, 5, 20, 0.5);
+            border: 1px solid rgba(255,255,255,0.13);
+            backdrop-filter: blur(24px) saturate(1.8);
+            color: #fff;
+            text-align: center;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.45);
+            font-family: 'Jost', sans-serif;
+          }
+          .checkout-auth-card h2 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: clamp(2rem, 5vw, 2.8rem);
+            margin-bottom: 0.75rem;
+          }
+          .checkout-auth-card p {
+            color: rgba(255,255,255,0.72);
+            line-height: 1.8;
+            margin-bottom: 1.5rem;
+          }
+          .checkout-auth-actions {
+            display: flex;
+            gap: 0.8rem;
+            justify-content: center;
+            flex-wrap: wrap;
+          }
+          .checkout-auth-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 180px;
+            padding: 0.95rem 1.25rem;
+            border-radius: 999px;
+            text-decoration: none;
+            font-family: 'Jost', sans-serif;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-size: 0.82rem;
+          }
+          .checkout-auth-link.primary {
+            background: linear-gradient(135deg, var(--rose-mid), var(--rose-deep));
+            color: #fff;
+          }
+          .checkout-auth-link.secondary {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.82);
+            border: 1px solid rgba(255,255,255,0.16);
+          }
+        `}</style>
+        <section className="checkout-auth-wall">
+          <div className="checkout-auth-card">
+            <h2>Login Required</h2>
+            <p>Please login first to place an order. Once you sign in, you can continue checkout and complete payment.</p>
+            <div className="checkout-auth-actions">
+              <Link to="/login" className="checkout-auth-link primary">Login</Link>
+              <Link to="/cart" className="checkout-auth-link secondary">Back to Cart</Link>
+            </div>
+          </div>
+        </section>
+      </>
+    );
+  }
+
   const validate = () => {
     if (!form.name.trim() || !form.phone.trim() || !form.address.trim()) {
       setError("Please fill all required fields.");
@@ -142,6 +223,10 @@ export default function Checkout({ cart = [], clearCart = () => {} }) {
 
   const placeOrder = async () => {
     setError(""); setMessage("");
+    if (!authUser) {
+      setError("Please login first to place your order.");
+      return;
+    }
     if (!validate()) return;
     setLoading(true);
     try {
@@ -174,6 +259,10 @@ export default function Checkout({ cart = [], clearCart = () => {} }) {
 
   const payNow = async () => {
     setError(""); setMessage("");
+    if (!authUser) {
+      setError("Please login first to continue payment.");
+      return;
+    }
     if (!validate()) return;
     setLoading(true);
     try {

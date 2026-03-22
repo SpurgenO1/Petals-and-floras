@@ -1,5 +1,4 @@
 from django.conf import settings
-import secrets
 
 
 class SecurityHeadersMiddleware:
@@ -26,8 +25,10 @@ class SecurityHeadersMiddleware:
         response.setdefault("Cross-Origin-Resource-Policy", "same-origin")
         response.setdefault("Cross-Origin-Embedder-Policy", "require-corp")
         
-        # Remove server header info
-        response.pop("Server", None)
+        # Remove server header info without assuming dict-like pop support.
+        if "Server" in response:
+            del response["Server"]
+
         response["X-Content-Type-Options"] = "nosniff"
         
         # Content Security Policy

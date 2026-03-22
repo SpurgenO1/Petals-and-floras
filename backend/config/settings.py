@@ -196,6 +196,9 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": os.environ.get("DRF_THROTTLE_ANON", "60/minute"),
         "user": os.environ.get("DRF_THROTTLE_USER", "120/minute"),
+        "auth_login": os.environ.get("DRF_THROTTLE_AUTH_LOGIN", "8/minute"),
+        "auth_register": os.environ.get("DRF_THROTTLE_AUTH_REGISTER", "5/minute"),
+        "auth_user": os.environ.get("DRF_THROTTLE_AUTH_USER", "30/minute"),
         "payments": os.environ.get("DRF_THROTTLE_PAYMENTS", "10/minute"),
         "orders": os.environ.get("DRF_THROTTLE_ORDERS", "30/minute"),
         "products": os.environ.get("DRF_THROTTLE_PRODUCTS", "120/minute"),
@@ -267,12 +270,19 @@ if not DEBUG:
     if not ALLOWED_HOSTS:
         raise RuntimeError("DJANGO_ALLOWED_HOSTS must be set in production")
 else:
-    ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,testserver")
+    ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "*")
     
 CORS_ALLOWED_ORIGINS = env_list(
     "DJANGO_CORS_ALLOWED_ORIGINS",
     "http://localhost:3000,http://127.0.0.1:3000",
 )
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https?://localhost:3000$",
+    r"^https?://127\.0\.0\.1:3000$",
+    r"^https?://(?:10|127|172\.(?:1[6-9]|2\d|3[0-1])|192\.168)\.\d{1,3}\.\d{1,3}:3000$",
+]
+CORS_ALLOW_ALL_ORIGINS = DEBUG
 
 if not DEBUG and not CORS_ALLOWED_ORIGINS:
     raise RuntimeError("DJANGO_CORS_ALLOWED_ORIGINS must be set in production")

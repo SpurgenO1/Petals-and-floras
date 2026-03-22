@@ -1,4 +1,6 @@
 import razorpay
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
 from django.conf import settings
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_protect
@@ -10,8 +12,15 @@ import re
 
 from .mongo import get_orders_collection, get_products_collection
 from .models import Order, Product
-from .serializers import OrderSerializer, ProductSerializer
+from .serializers import (
+    AuthUserSerializer,
+    LoginSerializer,
+    OrderSerializer,
+    ProductSerializer,
+    RegisterSerializer,
+)
 from .throttles import OrderRateThrottle, PaymentRateThrottle, ProductRateThrottle
+from .throttles import AuthLoginRateThrottle, AuthRegisterRateThrottle, AuthUserRateThrottle
 
 
 def validate_order(data):
@@ -63,6 +72,18 @@ def sanitize_string(value, max_length=500):
     return sanitized[:max_length]
 
 
+def serialize_auth_user(user):
+    serializer = AuthUserSerializer(
+        {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "name": user.get_full_name() or user.username,
+        }
+    )
+    return serializer.data
+
+
 def calculate_total(items):
     total = 0
     for item in items:
@@ -108,6 +129,7 @@ def build_mongo_order(payload, order_obj):
         "source": "checkout",
         "created_at": timezone.now(),
         "customer": {
+            "user_id": order_obj.user_id,
             "name": sanitize_string(payload["name"], 100),
             "phone": sanitize_string(payload["phone"], 15),
             "address": sanitize_string(payload["address"], 500),
@@ -163,9 +185,95 @@ def get_products(request):
     return Response(serializer.data)
 
 
+@api_view(["GET"])
+@throttle_classes([AuthUserRateThrottle])
+def get_current_user(request):
+    if not request.user.is_authenticated:
+        return Response({"error": "Not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    return Response(serialize_auth_user(request.user))
+
+
+@api_view(["POST"])
+@throttle_classes([AuthRegisterRateThrottle])
+def register_user(request):
+    serializer = RegisterSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    payload = serializer.validated_data
+    email = payload["email"]
+    base_username = email.split("@", 1)[0]
+    username = re.sub(r"[^a-zA-Z0-9_.-]", "", base_username)[:30] or "petals_user"
+    suffix = 1
+
+    while User.objects.filter(username=username).exists():
+        candidate = f"{base_username[:24]}{suffix}"
+        username = re.sub(r"[^a-zA-Z0-9_.-]", "", candidate)[:30] or f"petals_user{suffix}"
+        suffix += 1
+
+    user = User.objects.create_user(
+        username=username,
+        email=email,
+        password=payload["password"],
+        first_name=payload["name"].strip(),
+    )
+    login(request, user)
+
+    return Response(
+        {
+            "message": "Account created successfully",
+            "user": serialize_auth_user(user),
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(["POST"])
+@throttle_classes([AuthLoginRateThrottle])
+def login_user(request):
+    serializer = LoginSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    email = serializer.validated_data["email"].strip().lower()
+    password = serializer.validated_data["password"]
+
+    matched_user = User.objects.filter(email__iexact=email).first()
+    username = matched_user.username if matched_user else email
+    user = authenticate(request, username=username, password=password)
+
+    if user is None:
+        return Response(
+            {"error": "Invalid email or password"},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    login(request, user)
+    return Response(
+        {
+            "message": "Logged in successfully",
+            "user": serialize_auth_user(user),
+        }
+    )
+
+
+@api_view(["POST"])
+@throttle_classes([AuthUserRateThrottle])
+def logout_user(request):
+    logout(request)
+    return Response({"message": "Logged out successfully"})
+
+
 @api_view(["POST"])
 @throttle_classes([OrderRateThrottle])
 def create_order(request):
+    if not request.user.is_authenticated:
+        return Response(
+            {"error": "Login required to place an order"},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
     error = validate_order(request.data)
     if error:
         return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
@@ -187,6 +295,7 @@ def create_order(request):
 
     try:
         order_obj = Order.objects.create(
+            user=request.user,
             name=sanitize_string(payload["name"], 100),
             phone=sanitize_string(payload["phone"], 15),
             address=sanitize_string(payload["address"], 500),
@@ -229,6 +338,12 @@ def create_order(request):
 @api_view(["POST"])
 @throttle_classes([PaymentRateThrottle])
 def create_payment(request):
+    if not request.user.is_authenticated:
+        return Response(
+            {"error": "Login required to start payment"},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
     try:
         amount = int(request.data.get("amount", 0))
     except (ValueError, TypeError):

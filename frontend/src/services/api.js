@@ -1,6 +1,19 @@
 import axios from "axios";
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://127.0.0.1:8000/api/";
+const getDefaultApiBaseUrl = () => {
+  if (process.env.REACT_APP_API_BASE_URL) {
+    return process.env.REACT_APP_API_BASE_URL;
+  }
+
+  if (typeof window !== "undefined") {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:8000/api/`;
+  }
+
+  return "http://127.0.0.1:8000/api/";
+};
+
+const API_BASE_URL = getDefaultApiBaseUrl();
 
 // Validate base URL is https in production
 if (process.env.NODE_ENV === "production" && !API_BASE_URL.startsWith("https://")) {
@@ -85,3 +98,11 @@ export const createPaymentOrder = (amountInPaise) => {
     throw error;
   }
 };
+
+export const getCurrentUser = () => API.get("auth/me/");
+
+export const registerUser = (payload) => API.post("auth/register/", payload);
+
+export const loginUser = (payload) => API.post("auth/login/", payload);
+
+export const logoutUser = () => API.post("auth/logout/");

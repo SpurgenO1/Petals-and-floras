@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
 import FrameAnimation from "../components/FrameAnimation";
-import { Link } from "react-router-dom";
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
