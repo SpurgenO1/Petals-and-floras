@@ -10,6 +10,7 @@
   --glass: rgba(255, 255, 255, 0.7);
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.06);
   --transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+  --nav-height: 96px;
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;400;600;700&display=swap');
@@ -27,6 +28,10 @@ body {
   line-height: 1.6;
   overflow-x: hidden;
   scroll-behavior: smooth;
+}
+
+#root {
+  min-height: 100vh;
 }
 
 h1, h2, h3, h4 {
@@ -57,11 +62,17 @@ a {
   justify-content: space-between;
   align-items: center;
   transition: var(--transition);
+  min-height: var(--nav-height);
+  transform: translateY(0);
 }
 
 .nav.scrolled {
   padding: 0.8rem 5%;
   background: rgba(255, 255, 255, 0.95);
+}
+
+.nav.nav-hidden {
+  transform: translateY(calc(-100% - 12px));
 }
 
 .brand {
@@ -71,6 +82,20 @@ a {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.brand-mark {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  display: inline-block;
+  background:
+    radial-gradient(circle at 30% 30%, #ffd6e0 0 22%, transparent 23%),
+    radial-gradient(circle at 70% 30%, #ff8cab 0 26%, transparent 27%),
+    radial-gradient(circle at 28% 72%, #ff7397 0 24%, transparent 25%),
+    radial-gradient(circle at 72% 72%, #ff5e86 0 24%, transparent 25%),
+    radial-gradient(circle at 50% 50%, #d64a6e 0 22%, #b93156 23% 42%, transparent 43%);
+  box-shadow: 0 0 0 6px rgba(214, 74, 110, 0.12);
 }
 
 .nav-links {
@@ -99,6 +124,18 @@ a {
   width: 100%;
 }
 
+.app-content {
+  min-height: calc(100vh - var(--nav-height));
+}
+
+.app-content-home {
+  padding-top: 0;
+}
+
+.app-content-inner {
+  padding-top: 0;
+}
+
 /* 3D Hero Section */
 .hero-wrapper {
   position: relative;
@@ -108,7 +145,7 @@ a {
 .sticky-container {
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -139,6 +176,13 @@ a {
 .hero-content {
   pointer-events: auto;
   max-width: 800px;
+}
+
+.hero-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
 }
 
 .hero-content h1 {
@@ -370,8 +414,26 @@ a {
 .mb-8 { margin-bottom: 2rem; }
 
 @media (max-width: 768px) {
+  :root {
+    --nav-height: 84px;
+  }
+
+  .nav {
+    padding: 1rem 5%;
+  }
+
   .nav-links { display: none; }
   .about-grid { grid-template-columns: 1fr; }
   .hero-content h1 { font-size: 3rem; }
+  .hero-content p { font-size: 1rem; }
+  .hero-buttons { flex-direction: column; align-items: center; }
+  .btn { width: min(100%, 320px); justify-content: center; }
   .section-padding { padding: 60px 5%; }
+  .app-content-inner { padding-top: 0; }
+}
+
+@media (max-width: 640px) {
+  .hero-wrapper { height: 180vh; }
+  .gallery-grid { grid-template-columns: 1fr; }
+  .gallery-item { height: 220px; }
 }
