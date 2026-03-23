@@ -20,10 +20,15 @@ class SecurityHeadersMiddleware:
         # Restrict browser features
         response.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
         
-        # Cross-origin policies
-        response.setdefault("Cross-Origin-Opener-Policy", "same-origin")
-        response.setdefault("Cross-Origin-Resource-Policy", "same-origin")
-        response.setdefault("Cross-Origin-Embedder-Policy", "require-corp")
+        # Keep local development API requests simple. These headers can cause the
+        # browser to block cross-origin dev requests even when Django is running.
+        if settings.DEBUG:
+            response.setdefault("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
+            response.setdefault("Cross-Origin-Resource-Policy", "cross-origin")
+        else:
+            response.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+            response.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+            response.setdefault("Cross-Origin-Embedder-Policy", "require-corp")
         
         # Remove server header info without assuming dict-like pop support.
         if "Server" in response:

@@ -56,7 +56,14 @@ function AppLayout({
 }
 
 function App() {
-  const [authUser, setAuthUser] = useState(null);
+  const [authUser, setAuthUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("pf_auth_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [cart, setCart] = useState(() => {
     try {
       const saved = localStorage.getItem("pf_cart");
@@ -69,6 +76,18 @@ function App() {
   useEffect(() => {
     localStorage.setItem("pf_cart", JSON.stringify(cart));
   }, [cart]);
+
+  useEffect(() => {
+    try {
+      if (authUser) {
+        localStorage.setItem("pf_auth_user", JSON.stringify(authUser));
+      } else {
+        localStorage.removeItem("pf_auth_user");
+      }
+    } catch {
+      // Ignore storage failures and keep the in-memory auth state.
+    }
+  }, [authUser]);
 
   useEffect(() => {
     let mounted = true;

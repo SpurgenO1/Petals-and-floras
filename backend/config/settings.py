@@ -282,6 +282,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https?://127\.0\.0\.1:3000$",
     r"^https?://(?:10|127|172\.(?:1[6-9]|2\d|3[0-1])|192\.168)\.\d{1,3}\.\d{1,3}:3000$",
 ]
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 
 if not DEBUG and not CORS_ALLOWED_ORIGINS:

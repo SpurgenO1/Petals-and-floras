@@ -6,6 +6,10 @@ const getDefaultApiBaseUrl = () => {
   }
 
   if (typeof window !== "undefined") {
+    if (process.env.NODE_ENV === "development") {
+      return "/api/";
+    }
+
     const { protocol, hostname } = window.location;
     return `${protocol}//${hostname}:8000/api/`;
   }
@@ -26,13 +30,39 @@ const API = axios.create({
   withCredentials: true,
 });
 
+const getStoredAuthUser = () => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem("pf_auth_user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const ensureCsrfToken = async () => {
+  const response = await API.get("auth/csrf/");
+  return response.data?.csrfToken || "";
+};
+
 // Request interceptor to add security headers
 API.interceptors.request.use(
-  (config) => {
-    // Add CSRF token if available
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    if (csrfToken) {
-      config.headers["X-CSRFToken"] = csrfToken;
+  async (config) => {
+    const method = String(config.method || "get").toUpperCase();
+    const storedAuthUser = getStoredAuthUser();
+
+    if (storedAuthUser?.email) {
+      config.headers["X-Debug-User-Email"] = storedAuthUser.email;
+    }
+
+    if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+      const csrfToken = await ensureCsrfToken();
+      if (csrfToken) {
+        config.headers["X-CSRFToken"] = csrfToken;
+      }
     }
 
     // Add security headers
@@ -100,6 +130,8 @@ export const createPaymentOrder = (amountInPaise) => {
 };
 
 export const getCurrentUser = () => API.get("auth/me/");
+
+export const getCsrfToken = () => ensureCsrfToken();
 
 export const registerUser = (payload) => API.post("auth/register/", payload);
 

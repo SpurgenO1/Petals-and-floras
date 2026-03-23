@@ -184,7 +184,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
           localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(nextProducts));
           setError(nextProducts.length > 0 ? "" : "No products found in Django admin.");
         }
-      } catch (err) {
+      } catch {
         if (!ignore) {
           if (!hasProductsRef.current) {
             setProducts(catalogProducts.map((product) => normalizeProduct({ ...product, isFromAdmin: false })));

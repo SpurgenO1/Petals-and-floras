@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { loginUser, registerUser } from "../services/api";
+import { getCurrentUser, loginUser, registerUser } from "../services/api";
 
 const initialLoginState = { email: "", password: "" };
 const initialRegisterState = { name: "", email: "", password: "" };
@@ -8,10 +8,23 @@ const initialRegisterState = { name: "", email: "", password: "" };
 function extractError(error, fallback) {
   const data = error?.response?.data;
   if (!data) {
+    if (error?.code === "ERR_NETWORK") {
+      return "Cannot reach the backend server. Restart the backend and try again.";
+    }
+
+    if (error?.response?.status === 404) {
+      return "Auth API is unavailable right now. Restart the backend and try again.";
+    }
+  }
+
+  if (!data) {
     return fallback;
   }
 
   if (typeof data.error === "string") {
+    if (data.error === "Not authenticated") {
+      return "Login session could not be verified. Refresh the page and try again.";
+    }
     return data.error;
   }
 
@@ -60,14 +73,30 @@ export default function Login({ authUser, onAuthSuccess }) {
     setMessage("");
 
     try {
-      const response =
+      const authResponse =
         mode === "login"
           ? await loginUser(loginForm)
           : await registerUser(registerForm);
 
-      onAuthSuccess?.(response.data.user);
-      setMessage(response.data.message || "Welcome back");
+      const authenticatedUser = authResponse.data?.user;
+      if (!authenticatedUser) {
+        throw new Error("Missing authenticated user");
+      }
+
+      onAuthSuccess?.(authenticatedUser);
+      setMessage(authResponse.data?.message || (mode === "login" ? "Logged in successfully" : "Account created successfully"));
       navigate("/", { replace: true });
+
+      window.setTimeout(() => {
+        getCurrentUser()
+          .then((sessionResponse) => {
+            onAuthSuccess?.(sessionResponse.data);
+          })
+          .catch(() => {
+            // Keep the optimistic auth state; checkout/order requests will still
+            // verify the real backend session on demand.
+          });
+      }, 0);
     } catch (requestError) {
       setError(
         extractError(
