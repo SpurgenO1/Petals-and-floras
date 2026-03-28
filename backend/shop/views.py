@@ -12,7 +12,7 @@ from rest_framework import status
 import re
 
 from .catalog import CATALOG_PRODUCTS
-from .mongo import get_orders_collection, get_products_collection
+from .mongo import get_orders_collection, get_products_collection, sync_product_to_mongo
 from .models import Order, Product
 from .serializers import (
     AuthUserSerializer,
@@ -168,34 +168,67 @@ def build_mongo_order(payload, order_obj):
 @api_view(["GET"])
 @throttle_classes([ProductRateThrottle])
 def get_products(request):
-    products = [
-        {
+    django_products = list(Product.objects.all().order_by("id")[:200])
+    for item in django_products:
+        try:
+            sync_product_to_mongo(item)
+        except PyMongoError:
+            break
+
+    products = []
+    product_map = {}
+
+    for item in django_products:
+        name = sanitize_string(item.name, 100)
+        category = sanitize_string(item.category or "Floral", 50)
+        dedupe_key = f"django::{item.id}"
+        product_map[dedupe_key] = {
             "id": str(item.id),
-            "name": sanitize_string(item.name, 100),
+            "name": name,
             "price": int(item.price),
             "old_price": None,
             "description": sanitize_string(item.description, 500),
-            "category": sanitize_string(item.category or "Floral", 50),
+            "category": category,
         }
-        for item in Product.objects.all().order_by("id")[:200]
-    ]
 
-    if not products:
-        try:
-            collection = get_products_collection()
-            for item in collection.find({}, {"name": 1, "price": 1, "old_price": 1, "description": 1, "category": 1}).limit(200):
-                products.append(
-                    {
-                        "id": str(item.get("_id")),
-                        "name": sanitize_string(item.get("name", ""), 100),
-                        "price": int(item.get("price", 0)),
-                        "old_price": item.get("old_price"),
-                        "description": sanitize_string(item.get("description", ""), 500),
-                        "category": sanitize_string(item.get("category", "Floral"), 50),
-                    }
-                )
-        except PyMongoError:
-            products = []
+    try:
+        collection = get_products_collection()
+        mongo_products = collection.find(
+            {},
+            {
+                "django_product_id": 1,
+                "name": 1,
+                "price": 1,
+                "old_price": 1,
+                "description": 1,
+                "category": 1,
+                "updated_at": 1,
+            },
+        ).sort([("updated_at", -1), ("_id", -1)]).limit(500)
+
+        for item in mongo_products:
+            name = sanitize_string(item.get("name", ""), 100)
+            category = sanitize_string(item.get("category", "Floral"), 50)
+            mongo_identity = item.get("django_product_id") or item.get("_id")
+            if item.get("django_product_id"):
+                dedupe_key = f"django::{item['django_product_id']}"
+            else:
+                dedupe_key = f"mongo::{mongo_identity}"
+            if not name:
+                continue
+
+            product_map[dedupe_key] = {
+                "id": str(mongo_identity),
+                "name": name,
+                "price": int(item.get("price", 0)),
+                "old_price": item.get("old_price"),
+                "description": sanitize_string(item.get("description", ""), 500),
+                "category": category,
+            }
+    except PyMongoError:
+        pass
+
+    products = list(product_map.values())
 
     if not products:
         products = [

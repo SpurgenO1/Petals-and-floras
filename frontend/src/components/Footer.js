@@ -3,6 +3,9 @@ import logoMark from "../assets/petals-floras-logo.png";
 function Footer() {
   return (
     <footer className="footer" style={{ padding: "4rem 5%", background: "#1a1a1e", color: "#fff" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,700&family=Cormorant+Garamond:ital,wght@0,500;1,500&display=swap');
+      `}</style>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "2rem", textAlign: "left" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.85rem", marginBottom: "1rem" }}>
@@ -19,7 +22,19 @@ function Footer() {
                 style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "center", display: "block" }}
               />
             </span>
-            <h3 style={{ color: "#d7b56d", marginBottom: 0 }}>Petals and Flora</h3>
+            <h3
+              style={{
+                color: "#fff",
+                marginBottom: 0,
+                fontFamily: "'Bodoni Moda', serif",
+                fontWeight: 500,
+                fontSize: "1.8rem",
+                letterSpacing: "-0.04em",
+                lineHeight: 1,
+              }}
+            >
+              Petals <span style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", color: "rgba(255,255,255,0.72)" }}>&amp;</span> Flora
+            </h3>
           </div>
           <p style={{ opacity: 0.7 }}>Fresh flowers and unique floral arrangements for all your special moments.</p>
         </div>

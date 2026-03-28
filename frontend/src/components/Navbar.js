@@ -33,6 +33,18 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
     }
   }, [authUser]);
 
+  useEffect(() => {
+    if (authUser || !showLoginPrompt || location.pathname === "/login") {
+      return undefined;
+    }
+
+    const dismissTimer = window.setTimeout(() => {
+      setShowLoginPrompt(false);
+    }, 5000);
+
+    return () => window.clearTimeout(dismissTimer);
+  }, [authUser, showLoginPrompt, location.pathname]);
+
   const handleLogoutClick = async () => {
     setLoggingOut(true);
     try {
@@ -52,7 +64,7 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Jost:wght@300;400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,700&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@300;400;500&display=swap');
 
         :root {
           --rose-deep:  #7b1a2e;
@@ -105,9 +117,9 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
           display: flex; align-items: center; gap: 0.65rem;
           text-decoration: none;
           color: #fff;
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 1.25rem; font-weight: 600;
-          letter-spacing: 0.02em;
+          font-family: 'Bodoni Moda', serif;
+          font-size: 1.4rem; font-weight: 500;
+          letter-spacing: -0.035em;
           flex-shrink: 0;
           position: relative;
         }
@@ -123,10 +135,19 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
           object-position: center;
           display: block;
         }
-        .nb-brand-name { color: #fff; }
+        .nb-brand-name {
+          color: #fff;
+          display: inline-flex;
+          align-items: baseline;
+          gap: 0.16em;
+          line-height: 1;
+        }
         .nb-brand-name em {
-          font-style: normal;
-          color: var(--gold-logo);
+          font-family: 'Cormorant Garamond', serif;
+          font-style: italic;
+          font-weight: 500;
+          color: rgba(255,255,255,0.74);
+          transform: translateY(-0.03em);
         }
 
         .nb-links {
@@ -360,7 +381,7 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
 
         @media (max-width: 900px) {
           .nb-nav { padding: 0 1rem; }
-          .nb-brand { gap: 0.5rem; font-size: 1.05rem; }
+          .nb-brand { gap: 0.5rem; font-size: 1.16rem; }
           .nb-brand-badge { width: 34px; height: 44px; }
           .nb-link { padding: 0.35rem 0.65rem; font-size: 0.76rem; }
           .nb-cart { padding: 0.38rem 0.9rem; font-size: 0.76rem; }
@@ -373,7 +394,7 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
           .nb-cart, .nb-auth { display: none; }
           .nb-nav { height: 60px; }
           .nb-drawer { top: 60px; }
-          .nb-brand-name { font-size: 0.98rem; }
+          .nb-brand-name { font-size: 1rem; }
           .nb-login-prompt {
             top: 72px;
             right: 0.75rem;

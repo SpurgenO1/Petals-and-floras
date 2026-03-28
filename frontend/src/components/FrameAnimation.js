@@ -224,7 +224,10 @@ function FrameAnimation() {
 
         <div className="hero-overlay">
           <div className="hero-content">
-            <h1>Nature's Beauty in Every Petal</h1>
+            <h1>
+              <span>Nature's Beauty in</span>
+              <em>Every Petal</em>
+            </h1>
             <p>Experience fresh flowers and unique floral arrangements delivered with love in Chennai.</p>
             <div className="hero-buttons">
               <Link to="/products" className="btn btn-primary">Shop Collection</Link>

@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Route, Routes, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import Home from "./pages/Home";
@@ -72,6 +72,7 @@ function App() {
       return [];
     }
   });
+  const initialAuthUserRef = useRef(authUser);
 
   useEffect(() => {
     localStorage.setItem("pf_cart", JSON.stringify(cart));
@@ -90,6 +91,10 @@ function App() {
   }, [authUser]);
 
   useEffect(() => {
+    if (!initialAuthUserRef.current) {
+      return undefined;
+    }
+
     let mounted = true;
 
     getCurrentUser()

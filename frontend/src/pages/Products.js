@@ -3,8 +3,6 @@ import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { getProducts } from "../services/api";
 import { catalogProducts } from "../data/catalogProducts";
 
-const PRODUCTS_CACHE_KEY = "pf_live_products";
-
 const CATEGORY_STYLES = {
   Roses: { start: "#f6b3c2", end: "#8f1d35", label: "Rose" },
   Carnations: { start: "#ffd8df", end: "#d95b78", label: "Carnation" },
@@ -145,28 +143,32 @@ function ProductCard({ product, addToCart }) {
 }
 
 export default function Products({ cart = [], setCart = () => {} }) {
-  const [products, setProducts] = useState(() => {
-    try {
-      const saved = localStorage.getItem(PRODUCTS_CACHE_KEY);
-      if (!saved) {
-        return catalogProducts.map((product) => normalizeProduct({ ...product, isFromAdmin: false }));
-      }
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed)
-        ? parsed.map(normalizeProduct)
-        : catalogProducts.map((product) => normalizeProduct({ ...product, isFromAdmin: false }));
-    } catch {
-      return catalogProducts.map((product) => normalizeProduct({ ...product, isFromAdmin: false }));
-    }
-  });
-  const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState(() =>
+    catalogProducts.map((product) => normalizeProduct({ ...product, isFromAdmin: false }))
+  );
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [showCartBubble, setShowCartBubble] = useState(false);
   const hasProductsRef = useRef(products.length > 0);
 
   useEffect(() => {
     hasProductsRef.current = products.length > 0;
   }, [products]);
+
+  useEffect(() => {
+    if (cart.length === 0) {
+      setShowCartBubble(false);
+      return undefined;
+    }
+
+    setShowCartBubble(true);
+    const timer = window.setTimeout(() => {
+      setShowCartBubble(false);
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [cart]);
 
   useEffect(() => {
     let ignore = false;
@@ -181,8 +183,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
             ? response.data.map((product) => normalizeProduct({ ...product, isFromAdmin: true }))
             : [];
           setProducts(nextProducts);
-          localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(nextProducts));
-          setError(nextProducts.length > 0 ? "" : "No products found in Django admin.");
+          setError(nextProducts.length > 0 ? "" : "No products found in MongoDB or Django admin.");
         }
       } catch {
         if (!ignore) {
@@ -191,8 +192,8 @@ export default function Products({ cart = [], setCart = () => {} }) {
           }
           setError(
             hasProductsRef.current
-              ? "Showing saved products. Start the backend server to fetch new admin changes."
-              : "Showing catalog fallback. Start the backend server to sync Django admin changes."
+              ? "Live sync is temporarily unavailable. Current products will refresh when the backend reconnects."
+              : "Showing catalog fallback. Start the backend server to load live products from MongoDB or Django admin."
           );
         }
       } finally {
@@ -565,7 +566,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
         }
         .cart-bubble {
           position: fixed;
-          bottom: 2rem;
+          bottom: 6.75rem;
           right: 2rem;
           z-index: 100;
           background: linear-gradient(135deg, var(--rose-mid), var(--rose-deep));
@@ -594,7 +595,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
           .card-img-wrap { height: 180px; }
           .card-footer { flex-direction: column; align-items: stretch; }
           .btn-add { width: 100%; }
-          .cart-bubble { left: 1rem; right: 1rem; bottom: 1rem; text-align: center; }
+          .cart-bubble { left: 1rem; right: 1rem; bottom: 5.75rem; text-align: center; }
         }
       `}</style>
 
@@ -658,12 +659,13 @@ export default function Products({ cart = [], setCart = () => {} }) {
           <div className="sync-banner">{error}</div>
         )}
 
-        {loading && products.length === 0 ? (
-          <div className="center-msg">Loading catalog...</div>
-        ) : error && products.length === 0 ? (
+        {error && products.length === 0 ? (
           <div className="center-msg">{error}</div>
         ) : (
           <>
+            {loading && (
+              <div className="sync-banner">Refreshing latest products...</div>
+            )}
             <motion.div
               className="grid"
               initial="hidden"
@@ -698,7 +700,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
         )}
       </div>
 
-      {cart.length > 0 && (
+      {cart.length > 0 && showCartBubble && (
         <motion.div
           className="cart-bubble"
           initial={{ scale: 0, opacity: 0 }}

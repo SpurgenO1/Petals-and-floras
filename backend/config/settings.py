@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import importlib.util
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -89,6 +90,9 @@ INSTALLED_APPS = [
     'rest_framework',
     'shop',
 ]
+
+if importlib.util.find_spec("jazzmin") is not None:
+    INSTALLED_APPS.insert(0, "jazzmin")
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
