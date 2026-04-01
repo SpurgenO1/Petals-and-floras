@@ -1,7 +1,7 @@
 from rest_framework import serializers
 import re
 from django.contrib.auth.models import User
-from .models import Order
+from .models import Feedback, Order, Product
 
 
 class ProductSerializer(serializers.Serializer):
@@ -94,6 +94,70 @@ class OrderHistorySerializer(serializers.ModelSerializer):
 
     def get_item_count(self, obj):
         return sum(int(item.get("qty", 1)) for item in obj.items if isinstance(item, dict))
+
+
+class FeedbackCreateSerializer(serializers.Serializer):
+    target_type = serializers.ChoiceField(choices=Feedback.TARGET_CHOICES)
+    product_id = serializers.IntegerField(required=False, allow_null=True)
+    rating = serializers.IntegerField(min_value=1, max_value=5)
+    title = serializers.CharField(max_length=120)
+    message = serializers.CharField(max_length=1000)
+
+    def validate_title(self, value):
+        value = value.strip()
+        if len(value) < 3:
+            raise serializers.ValidationError("Title is too short")
+        return value
+
+    def validate_message(self, value):
+        value = value.strip()
+        if len(value) < 10:
+            raise serializers.ValidationError("Feedback message is too short")
+        return value
+
+    def validate(self, attrs):
+        target_type = attrs.get("target_type")
+        product_id = attrs.get("product_id")
+
+        if target_type == Feedback.TARGET_FLOWER:
+            if not product_id:
+                raise serializers.ValidationError({"product_id": "Select a flower product for flower feedback"})
+
+            product = Product.objects.filter(id=product_id).first()
+            if product is None:
+                raise serializers.ValidationError({"product_id": "Selected flower product does not exist"})
+            attrs["product"] = product
+        else:
+            attrs["product"] = None
+
+        return attrs
+
+
+class FeedbackSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+    product_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Feedback
+        fields = (
+            "id",
+            "target_type",
+            "rating",
+            "title",
+            "message",
+            "status",
+            "created_at",
+            "user_name",
+            "product_name",
+        )
+
+    def get_user_name(self, obj):
+        if obj.user:
+            return obj.user.get_full_name().strip() or obj.user.username
+        return "Guest"
+
+    def get_product_name(self, obj):
+        return obj.product.name if obj.product else ""
 
 
 class AuthUserSerializer(serializers.Serializer):

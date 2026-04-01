@@ -23,3 +23,7 @@ class OrderRateThrottle(ScopedRateThrottle):
 
 class ProductRateThrottle(ScopedRateThrottle):
     scope = "products"
+
+
+class FeedbackRateThrottle(ScopedRateThrottle):
+    scope = "feedback"

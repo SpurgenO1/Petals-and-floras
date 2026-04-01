@@ -131,6 +131,16 @@ export const createPaymentOrder = (amountInPaise) => {
 
 export const getCurrentUser = () => API.get("auth/me/");
 
+export const getFeedback = () => API.get("feedback/");
+
+export const createFeedback = (payload) => {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid feedback payload");
+  }
+
+  return API.post("feedback/create/", payload);
+};
+
 export const getCsrfToken = () => ensureCsrfToken();
 
 export const registerUser = (payload) => API.post("auth/register/", payload);

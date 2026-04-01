@@ -60,6 +60,17 @@ def get_order_history_collection():
     return collection
 
 
+def get_feedback_collection():
+    collection = get_database()["feedback"]
+    collection.create_index([("django_feedback_id", ASCENDING)], unique=True, sparse=True)
+    collection.create_index([("target_type", ASCENDING)])
+    collection.create_index([("status", ASCENDING)])
+    collection.create_index([("created_at", DESCENDING)])
+    collection.create_index([("user.django_user_id", ASCENDING)])
+    collection.create_index([("product.django_product_id", ASCENDING)])
+    return collection
+
+
 def build_product_document(product):
     return {
         "django_product_id": product.id,
@@ -118,6 +129,32 @@ def build_order_history_document(order):
     }
 
 
+def build_feedback_document(feedback):
+    user = feedback.user if isinstance(feedback.user, User) else None
+    product = feedback.product
+    return {
+        "django_feedback_id": feedback.id,
+        "target_type": feedback.target_type,
+        "rating": int(feedback.rating),
+        "title": feedback.title,
+        "message": feedback.message,
+        "status": feedback.status,
+        "user": {
+            "django_user_id": user.id if user else None,
+            "username": user.username if user else "",
+            "email": user.email if user else "",
+            "full_name": user.get_full_name().strip() if user else "",
+        },
+        "product": {
+            "django_product_id": product.id if product else None,
+            "name": product.name if product else "",
+            "category": product.category if product else "",
+        },
+        "created_at": feedback.created_at,
+        "updated_at": timezone.now(),
+    }
+
+
 def sync_product_to_mongo(product):
     collection = get_products_collection()
     document = build_product_document(product)
@@ -162,6 +199,16 @@ def sync_order_history_to_mongo(order):
     )
 
 
+def sync_feedback_to_mongo(feedback):
+    collection = get_feedback_collection()
+    document = build_feedback_document(feedback)
+    collection.update_one(
+        {"django_feedback_id": feedback.id},
+        {"$set": document},
+        upsert=True,
+    )
+
+
 def delete_product_from_mongo(product):
     collection = get_products_collection()
     delete_result = collection.delete_one({"django_product_id": product.id})
@@ -179,3 +226,8 @@ def delete_user_from_mongo(user):
 def delete_order_history_from_mongo(order):
     collection = get_order_history_collection()
     collection.delete_one({"admin_order_id": order.id})
+
+
+def delete_feedback_from_mongo(feedback):
+    collection = get_feedback_collection()
+    collection.delete_one({"django_feedback_id": feedback.id})

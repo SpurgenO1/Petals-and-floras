@@ -3,10 +3,12 @@ from django.contrib.auth.models import User
 from django.dispatch import receiver
 from pymongo.errors import PyMongoError
 
-from .models import Order, OrderHistory, Product
+from .models import Feedback, Order, OrderHistory, Product
 from .mongo import (
+    delete_feedback_from_mongo,
     delete_product_from_mongo,
     delete_user_from_mongo,
+    sync_feedback_to_mongo,
     sync_order_history_to_mongo,
     sync_product_to_mongo,
     sync_user_to_mongo,
@@ -82,3 +84,19 @@ def sync_django_order_history_after_save(sender, instance, **kwargs):
             sync_order_history_to_mongo(instance.source_order)
         except PyMongoError:
             pass
+
+
+@receiver(post_save, sender=Feedback)
+def sync_feedback_after_save(sender, instance, **kwargs):
+    try:
+        sync_feedback_to_mongo(instance)
+    except PyMongoError:
+        pass
+
+
+@receiver(post_delete, sender=Feedback)
+def sync_feedback_after_delete(sender, instance, **kwargs):
+    try:
+        delete_feedback_from_mongo(instance)
+    except PyMongoError:
+        pass

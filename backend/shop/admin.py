@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.db.models import Count, Max, Sum, Value
 from django.db.models.functions import Coalesce
 
-from .models import Order, OrderHistory, Product
+from .models import Feedback, Order, OrderHistory, Product
 
 admin.site.site_header = "Petals & Floras Administration"
 admin.site.site_title = "Petals & Floras Admin"
@@ -96,6 +96,36 @@ class OrderHistoryAdmin(admin.ModelAdmin):
     readonly_fields = ("ordered_at", "updated_at", "mongo_order_id")
     list_select_related = ("user", "source_order")
     ordering = ("-ordered_at",)
+
+
+@admin.register(Feedback)
+class FeedbackAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "title",
+        "target_type",
+        "product",
+        "user",
+        "rating",
+        "status",
+        "created_at",
+    )
+    list_filter = ("target_type", "status", "rating", "created_at")
+    search_fields = ("title", "message", "user__username", "user__email", "product__name")
+    list_select_related = ("user", "product")
+    readonly_fields = ("created_at", "updated_at")
+    ordering = ("-created_at",)
+    actions = ("mark_reviewed", "hide_feedback")
+
+    @admin.action(description="Mark selected feedback as reviewed")
+    def mark_reviewed(self, request, queryset):
+        updated = queryset.update(status=Feedback.STATUS_REVIEWED)
+        self.message_user(request, f"{updated} feedback item(s) marked as reviewed.")
+
+    @admin.action(description="Hide selected feedback")
+    def hide_feedback(self, request, queryset):
+        updated = queryset.update(status=Feedback.STATUS_HIDDEN)
+        self.message_user(request, f"{updated} feedback item(s) hidden.")
 
 
 admin.site.unregister(User)

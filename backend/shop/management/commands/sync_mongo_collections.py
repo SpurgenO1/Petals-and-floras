@@ -2,8 +2,9 @@ from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
 from pymongo.errors import PyMongoError
 
-from shop.models import Order, Product
+from shop.models import Feedback, Order, Product
 from shop.mongo import (
+    sync_feedback_to_mongo,
     sync_order_history_to_mongo,
     sync_product_to_mongo,
     sync_user_to_mongo,
@@ -17,6 +18,7 @@ class Command(BaseCommand):
         synced_products = 0
         synced_users = 0
         synced_order_history = 0
+        synced_feedback = 0
 
         for product in Product.objects.all().order_by("id"):
             try:
@@ -39,8 +41,15 @@ class Command(BaseCommand):
             except PyMongoError as error:
                 self.stderr.write(f"Failed to sync order history {order.id}: {error}")
 
+        for feedback in Feedback.objects.select_related("user", "product").all().order_by("id"):
+            try:
+                sync_feedback_to_mongo(feedback)
+                synced_feedback += 1
+            except PyMongoError as error:
+                self.stderr.write(f"Failed to sync feedback {feedback.id}: {error}")
+
         self.stdout.write(
             self.style.SUCCESS(
-                f"Mongo sync complete. Products: {synced_products}, Users: {synced_users}, Order history: {synced_order_history}"
+                f"Mongo sync complete. Products: {synced_products}, Users: {synced_users}, Order history: {synced_order_history}, Feedback: {synced_feedback}"
             )
         )

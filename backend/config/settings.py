@@ -206,6 +206,7 @@ REST_FRAMEWORK = {
         "payments": os.environ.get("DRF_THROTTLE_PAYMENTS", "10/minute"),
         "orders": os.environ.get("DRF_THROTTLE_ORDERS", "30/minute"),
         "products": os.environ.get("DRF_THROTTLE_PRODUCTS", "120/minute"),
+        "feedback": os.environ.get("DRF_THROTTLE_FEEDBACK", "20/minute"),
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,

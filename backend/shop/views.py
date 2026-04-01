@@ -13,9 +13,11 @@ import re
 
 from .catalog import CATALOG_PRODUCTS
 from .mongo import get_orders_collection, get_products_collection, sync_product_to_mongo
-from .models import Order, Product
+from .models import Feedback, Order, Product
 from .serializers import (
     AuthUserSerializer,
+    FeedbackCreateSerializer,
+    FeedbackSerializer,
     LoginSerializer,
     OrderHistorySerializer,
     OrderSerializer,
@@ -23,7 +25,7 @@ from .serializers import (
     RegisterSerializer,
 )
 from .throttles import OrderRateThrottle, PaymentRateThrottle, ProductRateThrottle
-from .throttles import AuthLoginRateThrottle, AuthRegisterRateThrottle, AuthUserRateThrottle
+from .throttles import AuthLoginRateThrottle, AuthRegisterRateThrottle, AuthUserRateThrottle, FeedbackRateThrottle
 
 
 def validate_order(data):
@@ -274,6 +276,50 @@ def get_order_history(request):
     orders = Order.objects.filter(user=user).order_by("-created_at")
     serializer = OrderHistorySerializer(orders, many=True)
     return Response(serializer.data)
+
+
+@api_view(["GET"])
+@throttle_classes([FeedbackRateThrottle])
+def get_feedback(request):
+    feedback_entries = Feedback.objects.select_related("user", "product").exclude(
+        status=Feedback.STATUS_HIDDEN
+    ).order_by("-created_at")[:100]
+    serializer = FeedbackSerializer(feedback_entries, many=True)
+    return Response(serializer.data)
+
+
+@api_view(["POST"])
+@throttle_classes([FeedbackRateThrottle])
+def create_feedback(request):
+    user = get_effective_user(request)
+    if user is None:
+        return Response(
+            {"error": "Login required to submit feedback"},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    serializer = FeedbackCreateSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    payload = serializer.validated_data
+    feedback = Feedback.objects.create(
+        user=user,
+        product=payload.get("product"),
+        target_type=payload["target_type"],
+        rating=payload["rating"],
+        title=sanitize_string(payload["title"], 120),
+        message=sanitize_string(payload["message"], 1000),
+        status=Feedback.STATUS_PENDING,
+    )
+
+    return Response(
+        {
+            "message": "Feedback submitted successfully",
+            "feedback": FeedbackSerializer(feedback).data,
+        },
+        status=status.HTTP_201_CREATED,
+    )
 
 
 @api_view(["POST"])

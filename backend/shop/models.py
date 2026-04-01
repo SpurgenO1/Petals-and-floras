@@ -75,3 +75,48 @@ class OrderHistory(models.Model):
 
     def __str__(self):
         return f"History #{self.id} - {self.customer_name}"
+
+
+class Feedback(models.Model):
+    TARGET_SHOP = "shop"
+    TARGET_FLOWER = "flower"
+    TARGET_CHOICES = [
+        (TARGET_SHOP, "Shop"),
+        (TARGET_FLOWER, "Flower"),
+    ]
+    STATUS_PENDING = "pending"
+    STATUS_REVIEWED = "reviewed"
+    STATUS_HIDDEN = "hidden"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_REVIEWED, "Reviewed"),
+        (STATUS_HIDDEN, "Hidden"),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="feedback_entries",
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="feedback_entries",
+    )
+    target_type = models.CharField(max_length=20, choices=TARGET_CHOICES, default=TARGET_SHOP)
+    rating = models.PositiveSmallIntegerField(default=5)
+    title = models.CharField(max_length=120)
+    message = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"Feedback #{self.id} - {self.title}"

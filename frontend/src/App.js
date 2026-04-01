@@ -42,7 +42,7 @@ function AppLayout({
             element={<Checkout cart={cart} clearCart={clearCart} authUser={authUser} />}
           />
           <Route path="/about" element={<About />} />
-          <Route path="/contact" element={<Contact />} />
+          <Route path="/contact" element={<Contact authUser={authUser} />} />
           <Route
             path="/login"
             element={<Login authUser={authUser} onAuthSuccess={handleAuthSuccess} />}
