@@ -17,6 +17,7 @@ from .models import Order, Product
 from .serializers import (
     AuthUserSerializer,
     LoginSerializer,
+    OrderHistorySerializer,
     OrderSerializer,
     ProductSerializer,
     RegisterSerializer,
@@ -263,6 +264,18 @@ def get_csrf_token(request):
     return Response({"csrfToken": get_token(request)})
 
 
+@api_view(["GET"])
+@throttle_classes([AuthUserRateThrottle])
+def get_order_history(request):
+    user = get_effective_user(request)
+    if user is None:
+        return Response({"error": "Not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    orders = Order.objects.filter(user=user).order_by("-created_at")
+    serializer = OrderHistorySerializer(orders, many=True)
+    return Response(serializer.data)
+
+
 @api_view(["POST"])
 @throttle_classes([AuthRegisterRateThrottle])
 def register_user(request):
@@ -388,6 +401,8 @@ def create_order(request):
         orders = get_orders_collection()
         insert_result = orders.insert_one(mongo_order)
         mongo_order_id = str(insert_result.inserted_id)
+        order_obj.mongo_order_id = mongo_order_id
+        order_obj.save(update_fields=["mongo_order_id"])
     except PyMongoError:
         mongo_sync_warning = "Order saved locally, but MongoDB sync failed."
 

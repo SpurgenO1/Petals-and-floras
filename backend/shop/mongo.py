@@ -2,22 +2,24 @@ from pymongo import MongoClient
 from pymongo import ASCENDING, DESCENDING
 from pymongo.errors import OperationFailure
 from django.conf import settings
+from django.contrib.auth.models import User
 from django.utils import timezone
 
 
-def get_products_collection():
+def get_database():
     client = MongoClient(settings.MONGO_URI)
-    db = client[settings.MONGO_DB_NAME]
-    collection = db["products"]
+    return client[settings.MONGO_DB_NAME]
+
+
+def get_products_collection():
+    collection = get_database()["products"]
     collection.create_index([("django_product_id", ASCENDING)], unique=True, sparse=True)
     collection.create_index([("updated_at", DESCENDING)])
     return collection
 
 
 def get_orders_collection():
-    client = MongoClient(settings.MONGO_URI)
-    db = client[settings.MONGO_DB_NAME]
-    collection = db["orders"]
+    collection = get_database()["orders"]
     collection.create_index([("created_at", DESCENDING)])
     collection.create_index([("payment.status", ASCENDING)])
     collection.create_index([("payment.method", ASCENDING)])
@@ -40,6 +42,24 @@ def get_orders_collection():
     return collection
 
 
+def get_users_collection():
+    collection = get_database()["users"]
+    collection.create_index([("django_user_id", ASCENDING)], unique=True, sparse=True)
+    collection.create_index([("email", ASCENDING)], unique=True, sparse=True)
+    collection.create_index([("username", ASCENDING)], unique=True, sparse=True)
+    collection.create_index([("date_joined", DESCENDING)])
+    return collection
+
+
+def get_order_history_collection():
+    collection = get_database()["order_history"]
+    collection.create_index([("admin_order_id", ASCENDING)], unique=True, sparse=True)
+    collection.create_index([("user.django_user_id", ASCENDING)])
+    collection.create_index([("created_at", DESCENDING)])
+    collection.create_index([("status", ASCENDING)])
+    return collection
+
+
 def build_product_document(product):
     return {
         "django_product_id": product.id,
@@ -48,6 +68,52 @@ def build_product_document(product):
         "description": product.description,
         "category": product.category or "Floral",
         "old_price": None,
+        "updated_at": timezone.now(),
+    }
+
+
+def build_user_document(user):
+    return {
+        "django_user_id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "full_name": user.get_full_name().strip() or user.username,
+        "is_staff": bool(user.is_staff),
+        "is_superuser": bool(user.is_superuser),
+        "is_active": bool(user.is_active),
+        "date_joined": user.date_joined,
+        "last_login": user.last_login,
+        "updated_at": timezone.now(),
+    }
+
+
+def build_order_history_document(order):
+    user = order.user if isinstance(order.user, User) else None
+    return {
+        "admin_order_id": order.id,
+        "mongo_order_id": order.mongo_order_id,
+        "user": {
+            "django_user_id": user.id if user else None,
+            "username": user.username if user else "",
+            "email": user.email if user else "",
+            "full_name": user.get_full_name().strip() if user else "",
+        },
+        "customer": {
+            "name": order.name,
+            "phone": order.phone,
+            "address": order.address,
+            "city": order.city,
+            "pincode": order.pincode,
+        },
+        "items": order.items,
+        "item_count": sum(int(item.get("qty", 1)) for item in order.items if isinstance(item, dict)),
+        "status": order.status,
+        "total_amount": int(order.total_amount),
+        "payment_order_id": order.payment_order_id,
+        "payment_id": order.payment_id,
+        "created_at": order.created_at,
         "updated_at": timezone.now(),
     }
 
@@ -76,6 +142,26 @@ def sync_product_to_mongo(product):
     )
 
 
+def sync_user_to_mongo(user):
+    collection = get_users_collection()
+    document = build_user_document(user)
+    collection.update_one(
+        {"django_user_id": user.id},
+        {"$set": document},
+        upsert=True,
+    )
+
+
+def sync_order_history_to_mongo(order):
+    collection = get_order_history_collection()
+    document = build_order_history_document(order)
+    collection.update_one(
+        {"admin_order_id": order.id},
+        {"$set": document},
+        upsert=True,
+    )
+
+
 def delete_product_from_mongo(product):
     collection = get_products_collection()
     delete_result = collection.delete_one({"django_product_id": product.id})
@@ -83,3 +169,13 @@ def delete_product_from_mongo(product):
         collection.delete_one(
             {"name": product.name, "category": product.category or "Floral"}
         )
+
+
+def delete_user_from_mongo(user):
+    collection = get_users_collection()
+    collection.delete_one({"django_user_id": user.id})
+
+
+def delete_order_history_from_mongo(order):
+    collection = get_order_history_collection()
+    collection.delete_one({"admin_order_id": order.id})

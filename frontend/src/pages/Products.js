@@ -3,6 +3,8 @@ import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { getProducts } from "../services/api";
 import { catalogProducts } from "../data/catalogProducts";
 
+const CATEGORY_INTEREST_STORAGE_KEY = "pf_category_interest";
+
 const CATEGORY_STYLES = {
   Roses: { start: "#f6b3c2", end: "#8f1d35", label: "Rose" },
   Carnations: { start: "#ffd8df", end: "#d95b78", label: "Carnation" },
@@ -51,6 +53,62 @@ function normalizeProduct(product) {
     image: buildProductImage(product),
     isFromAdmin: Boolean(product.isFromAdmin),
   };
+}
+
+function readCategoryInterest() {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(CATEGORY_INTEREST_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeCategoryInterest(nextInterest) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(CATEGORY_INTEREST_STORAGE_KEY, JSON.stringify(nextInterest));
+  } catch {
+    // Ignore storage failures so product browsing still works.
+  }
+}
+
+function rankCategories(categories, products, interestMap, searchTerm) {
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+
+  return [...categories].sort((leftCategory, rightCategory) => {
+    const leftProducts = products.filter((product) => product.category === leftCategory);
+    const rightProducts = products.filter((product) => product.category === rightCategory);
+    const leftInterest = Number(interestMap[leftCategory] || 0);
+    const rightInterest = Number(interestMap[rightCategory] || 0);
+
+    if (normalizedSearchTerm) {
+      const leftNameMatch = leftCategory.toLowerCase().includes(normalizedSearchTerm) ? 1 : 0;
+      const rightNameMatch = rightCategory.toLowerCase().includes(normalizedSearchTerm) ? 1 : 0;
+
+      if (leftNameMatch !== rightNameMatch) {
+        return rightNameMatch - leftNameMatch;
+      }
+    }
+
+    if (leftInterest !== rightInterest) {
+      return rightInterest - leftInterest;
+    }
+
+    if (leftProducts.length !== rightProducts.length) {
+      return rightProducts.length - leftProducts.length;
+    }
+
+    return leftCategory.localeCompare(rightCategory);
+  });
 }
 
 function FloatingPetal({ style }) {
@@ -146,14 +204,38 @@ export default function Products({ cart = [], setCart = () => {} }) {
   const [products, setProducts] = useState(() =>
     catalogProducts.map((product) => normalizeProduct({ ...product, isFromAdmin: false }))
   );
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [showCartBubble, setShowCartBubble] = useState(false);
+  const [categoryInterest, setCategoryInterest] = useState(() => readCategoryInterest());
   const hasProductsRef = useRef(products.length > 0);
+  const productsSignatureRef = useRef("");
+  const lastFetchTimeRef = useRef(0);
+  const fetchInFlightRef = useRef(false);
+  const petalsRef = useRef(
+    Array.from({ length: 18 }, () => ({
+      left: `${Math.random() * 100}%`,
+      width: `${12 + Math.random() * 18}px`,
+      height: `${16 + Math.random() * 22}px`,
+      duration: 7 + Math.random() * 9,
+      delay: Math.random() * 10,
+      filter: `hue-rotate(${Math.random() * 30 - 15}deg)`,
+    }))
+  );
 
   useEffect(() => {
     hasProductsRef.current = products.length > 0;
+    productsSignatureRef.current = JSON.stringify(
+      products.map((product) => ({
+        id: product.id,
+        name: product.name,
+        category: product.category,
+        price: product.price,
+        description: product.description,
+        isFromAdmin: product.isFromAdmin,
+      }))
+    );
   }, [products]);
 
   useEffect(() => {
@@ -170,11 +252,37 @@ export default function Products({ cart = [], setCart = () => {} }) {
     return () => window.clearTimeout(timer);
   }, [cart]);
 
+  const recordCategoryInterest = (category, amount = 1) => {
+    if (!category) {
+      return;
+    }
+
+    setCategoryInterest((current) => {
+      const nextInterest = {
+        ...current,
+        [category]: Number(current[category] || 0) + amount,
+      };
+      writeCategoryInterest(nextInterest);
+      return nextInterest;
+    });
+  };
+
   useEffect(() => {
     let ignore = false;
 
-    async function loadProducts() {
-      setLoading(true);
+    async function loadProducts({ background = false, force = false } = {}) {
+      const now = Date.now();
+      const isInitialLoad = !hasProductsRef.current;
+
+      if (fetchInFlightRef.current) {
+        return;
+      }
+
+      if (!force && !isInitialLoad && now - lastFetchTimeRef.current < 60000) {
+        return;
+      }
+
+      fetchInFlightRef.current = true;
 
       try {
         const response = await getProducts();
@@ -182,8 +290,24 @@ export default function Products({ cart = [], setCart = () => {} }) {
           const nextProducts = Array.isArray(response.data)
             ? response.data.map((product) => normalizeProduct({ ...product, isFromAdmin: true }))
             : [];
-          setProducts(nextProducts);
+
+          const nextSignature = JSON.stringify(
+            nextProducts.map((product) => ({
+              id: product.id,
+              name: product.name,
+              category: product.category,
+              price: product.price,
+              description: product.description,
+              isFromAdmin: product.isFromAdmin,
+            }))
+          );
+
+          if (nextSignature !== productsSignatureRef.current) {
+            setProducts(nextProducts);
+          }
+
           setError(nextProducts.length > 0 ? "" : "No products found in MongoDB or Django admin.");
+          lastFetchTimeRef.current = now;
         }
       } catch {
         if (!ignore) {
@@ -197,29 +321,26 @@ export default function Products({ cart = [], setCart = () => {} }) {
           );
         }
       } finally {
-        if (!ignore) {
-          setLoading(false);
-        }
+        fetchInFlightRef.current = false;
       }
     }
 
-    loadProducts();
+    loadProducts({ force: true });
 
     function handleFocus() {
-      loadProducts();
+      loadProducts({ background: true });
     }
 
     window.addEventListener("focus", handleFocus);
-    const refreshTimer = window.setInterval(loadProducts, 15000);
 
     return () => {
       ignore = true;
       window.removeEventListener("focus", handleFocus);
-      window.clearInterval(refreshTimer);
     };
   }, []);
 
   const addToCart = (product) => {
+    recordCategoryInterest(product.category, 3);
     setCart((prev) => {
       const exists = prev.find((item) => item.id === product.id);
       return exists
@@ -228,16 +349,37 @@ export default function Products({ cart = [], setCart = () => {} }) {
     });
   };
 
-  const categories = Array.from(new Set(products.map((product) => product.category).filter(Boolean)));
-  const filtered = products.filter((product) => !categoryFilter || product.category === categoryFilter);
-  const petals = Array.from({ length: 18 }, () => ({
-    left: `${Math.random() * 100}%`,
-    width: `${12 + Math.random() * 18}px`,
-    height: `${16 + Math.random() * 22}px`,
-    duration: 7 + Math.random() * 9,
-    delay: Math.random() * 10,
-    filter: `hue-rotate(${Math.random() * 30 - 15}deg)`,
-  }));
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+  const searchMatchedProducts = products.filter((product) => {
+    if (!normalizedSearchTerm) {
+      return true;
+    }
+
+    const searchableText = [product.name, product.category, product.description]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return searchableText.includes(normalizedSearchTerm);
+  });
+  const categories = Array.from(new Set(searchMatchedProducts.map((product) => product.category).filter(Boolean)));
+  const rankedCategories = rankCategories(categories, searchMatchedProducts, categoryInterest, searchTerm);
+  const filtered = searchMatchedProducts.filter(
+    (product) => !categoryFilter || product.category === categoryFilter
+  );
+  const visibleCategories = categoryFilter
+    ? [
+        categoryFilter,
+        ...rankedCategories.filter((category) => category !== categoryFilter).slice(0, 4),
+      ]
+    : rankedCategories.slice(0, 5);
+  const petals = petalsRef.current;
+
+  useEffect(() => {
+    if (categoryFilter && !categories.includes(categoryFilter)) {
+      setCategoryFilter("");
+    }
+  }, [categories, categoryFilter]);
 
   return (
     <>
@@ -363,6 +505,30 @@ export default function Products({ cart = [], setCart = () => {} }) {
         .filter-glass select option {
           background: #2d0616;
           color: #fff;
+        }
+        .search-glass {
+          display: flex;
+          align-items: center;
+          width: min(560px, 100%);
+          padding: 0.2rem 0.35rem 0.2rem 1rem;
+          background: rgba(60, 5, 20, 0.55);
+          border: 1px solid rgba(255,255,255,0.18);
+          backdrop-filter: blur(20px) saturate(1.8);
+          border-radius: 999px;
+          box-shadow: 0 4px 24px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.08) inset;
+        }
+        .search-input {
+          width: 100%;
+          border: none;
+          outline: none;
+          background: transparent;
+          color: rgba(255,255,255,0.92);
+          font-family: 'Jost', sans-serif;
+          font-size: 0.95rem;
+          padding: 0.8rem 0.75rem 0.8rem 0;
+        }
+        .search-input::placeholder {
+          color: rgba(255,255,255,0.48);
         }
 
         .chip-row {
@@ -588,6 +754,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
           .page { padding: calc(var(--nav-height) + 1.5rem) 0.9rem 4rem; }
           .header { margin-bottom: 2.2rem; }
           .header p { font-size: 0.88rem; line-height: 1.6; }
+          .search-glass { width: 100%; }
           .filter-glass { width: 100%; justify-content: space-between; padding: 0.8rem 1rem; }
           .filter-glass select { min-width: 0; width: 100%; }
           .grid { grid-template-columns: 1fr; gap: 1rem; }
@@ -622,11 +789,27 @@ export default function Products({ cart = [], setCart = () => {} }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
         >
+          <div className="search-glass">
+            <input
+              type="search"
+              className="search-input"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search flowers, category, or product name"
+            />
+          </div>
           <div className="filter-glass">
             <span>Category</span>
-            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+            <select
+              value={categoryFilter}
+              onChange={(event) => {
+                const nextCategory = event.target.value;
+                setCategoryFilter(nextCategory);
+                recordCategoryInterest(nextCategory, 2);
+              }}
+            >
               <option value="">All Categories</option>
-              {categories.map((category) => (
+              {rankedCategories.map((category) => (
                 <option key={category} value={category}>
                   {category}
                 </option>
@@ -644,11 +827,14 @@ export default function Products({ cart = [], setCart = () => {} }) {
           <span className={`chip ${categoryFilter === "" ? "active" : ""}`} onClick={() => setCategoryFilter("")}>
             All
           </span>
-          {categories.map((category) => (
+          {visibleCategories.map((category) => (
             <span
               key={category}
               className={`chip ${categoryFilter === category ? "active" : ""}`}
-              onClick={() => setCategoryFilter(category)}
+              onClick={() => {
+                setCategoryFilter(category);
+                recordCategoryInterest(category, 2);
+              }}
             >
               {category}
             </span>
@@ -663,9 +849,6 @@ export default function Products({ cart = [], setCart = () => {} }) {
           <div className="center-msg">{error}</div>
         ) : (
           <>
-            {loading && (
-              <div className="sync-banner">Refreshing latest products...</div>
-            )}
             <motion.div
               className="grid"
               initial="hidden"
@@ -678,6 +861,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
               {filtered.map((product) => (
                 <motion.div
                   key={product.id}
+                  onClick={() => recordCategoryInterest(product.category, 1)}
                   variants={{
                     hidden: { opacity: 0, y: 35, scale: 0.95 },
                     visible: {
@@ -694,7 +878,11 @@ export default function Products({ cart = [], setCart = () => {} }) {
             </motion.div>
 
             {filtered.length === 0 && (
-              <p className="empty">No products found in this category.</p>
+              <p className="empty">
+                {normalizedSearchTerm
+                  ? "No products match your search."
+                  : "No products found in this category."}
+              </p>
             )}
           </>
         )}

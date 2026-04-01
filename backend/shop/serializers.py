@@ -1,6 +1,7 @@
 from rest_framework import serializers
 import re
 from django.contrib.auth.models import User
+from .models import Order
 
 
 class ProductSerializer(serializers.Serializer):
@@ -68,6 +69,31 @@ class OrderSerializer(serializers.Serializer):
         if len(value) > 100:
             raise serializers.ValidationError("Too many items in order")
         return value
+
+
+class OrderHistorySerializer(serializers.ModelSerializer):
+    item_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Order
+        fields = (
+            "id",
+            "name",
+            "phone",
+            "city",
+            "pincode",
+            "status",
+            "total_amount",
+            "payment_order_id",
+            "payment_id",
+            "mongo_order_id",
+            "created_at",
+            "items",
+            "item_count",
+        )
+
+    def get_item_count(self, obj):
+        return sum(int(item.get("qty", 1)) for item in obj.items if isinstance(item, dict))
 
 
 class AuthUserSerializer(serializers.Serializer):
