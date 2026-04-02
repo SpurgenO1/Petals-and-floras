@@ -107,7 +107,7 @@ class Feedback(models.Model):
         blank=True,
         related_name="feedback_entries",
     )
-    target_type = models.CharField(max_length=20, choices=TARGET_CHOICES, default=TARGET_SHOP)
+    target_type = models.CharField(max_length=50, blank=True, default="shop")
     rating = models.PositiveSmallIntegerField(default=5)
     title = models.CharField(max_length=120)
     message = models.TextField()
