@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 import FrameAnimation from "../components/FrameAnimation";
 
 const fadeInUp = {
@@ -15,6 +16,20 @@ function Home() {
     <div className="home-overhaul">
       {/* 3D Hero Section */}
       <FrameAnimation />
+
+      <section className="hero-cta-section">
+        <motion.div
+          className="hero-cta-card"
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          viewport={{ once: true }}
+        >
+          <p className="hero-cta-eyebrow">Ready to explore?</p>
+          <h1 className="hero-cta-title">Discover Our Floral Collection</h1>
+          <Link to="/products" className="btn btn-primary">Shop Collection</Link>
+        </motion.div>
+      </section>
 
       {/* About Section */}
       <section id="about" className="section-padding">

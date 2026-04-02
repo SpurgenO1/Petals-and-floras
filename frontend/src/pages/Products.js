@@ -172,9 +172,23 @@ function ProductCard({ product, addToCart }) {
     setTimeout(() => setAdded(false), 1200);
   }
 
+  function handleCardKeyDown(event) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleAdd();
+    }
+  }
+
   return (
     <TiltCard>
-      <div className="card">
+      <div
+        className="card card-clickable"
+        role="button"
+        tabIndex={0}
+        onClick={handleAdd}
+        onKeyDown={handleCardKeyDown}
+        aria-label={`Add ${product.name} to cart`}
+      >
         <div className="card-img-wrap">
           <img src={product.image} alt={product.name} className="card-img" />
           <div className="img-overlay" />
@@ -187,9 +201,13 @@ function ProductCard({ product, addToCart }) {
           <div className="card-footer">
             <span className="stock-note">{sourceLabel}</span>
             <motion.button
+              type="button"
               className={`btn-add ${added ? "btn-added" : ""}`}
               whileTap={{ scale: 0.92 }}
-              onClick={handleAdd}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleAdd();
+              }}
             >
               {added ? "Added" : "Add to cart"}
             </motion.button>
@@ -592,13 +610,24 @@ export default function Products({ cart = [], setCart = () => {} }) {
             0 2px 0 rgba(255,255,255,0.08) inset,
             0 20px 60px rgba(0,0,0,0.45),
             0 4px 20px rgba(192,53,78,0.2);
-          transition: box-shadow 0.3s;
+          transition: box-shadow 0.3s, transform 0.2s, border-color 0.2s;
+        }
+        .card-clickable {
+          cursor: pointer;
+          outline: none;
         }
         .tilt-wrapper:hover .card {
           box-shadow:
             0 2px 0 rgba(255,255,255,0.12) inset,
             0 30px 70px rgba(0,0,0,0.55),
             0 8px 35px rgba(192,53,78,0.45);
+        }
+        .card-clickable:focus-visible {
+          border-color: rgba(255, 183, 204, 0.95);
+          box-shadow:
+            0 0 0 3px rgba(255, 183, 204, 0.25),
+            0 20px 60px rgba(0,0,0,0.45),
+            0 4px 20px rgba(192,53,78,0.2);
         }
         .card-img-wrap {
           position: relative;
@@ -779,7 +808,6 @@ export default function Products({ cart = [], setCart = () => {} }) {
         >
           <p className="header-eyebrow">Fresh from the catalog</p>
           <h2>Our <span>Shop</span> Collection</h2>
-          <p>All available products are now grouped by the categories from your Southern Flora PDF.</p>
           <div className="deco-line" />
         </motion.div>
 

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 
 const framesContext = require.context(
   "../assets/3d-images",
@@ -229,10 +228,6 @@ function FrameAnimation() {
               <em>Every Petal</em>
             </h1>
             <p>Experience fresh flowers and unique floral arrangements delivered with love in Chennai.</p>
-            <div className="hero-buttons">
-              <Link to="/products" className="btn btn-primary">Shop Collection</Link>
-              <a href="#about" className="btn btn-secondary">Learn More</a>
-            </div>
           </div>
         </div>
       </div>
