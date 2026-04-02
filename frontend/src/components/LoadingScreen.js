@@ -369,7 +369,7 @@ function useThreeScene(canvasRef) {
       window.removeEventListener("resize", onResize);
       renderer.dispose();
     };
-  }, []);
+  }, [canvasRef]);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

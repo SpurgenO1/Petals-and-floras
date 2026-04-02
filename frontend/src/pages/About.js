@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { motion, useMotionValue, useTransform, useSpring, useScroll, useTransform as useT } from "framer-motion";
+import { motion, useMotionValue, useTransform, useSpring } from "framer-motion";
 
 // ── Floating petal ────────────────────────────────────────────────────────────
 function FloatingPetal({ style }) {
@@ -47,25 +47,6 @@ function TiltCard({ children, className = "" }) {
   );
 }
 
-// ── Stat card ─────────────────────────────────────────────────────────────────
-function StatCard({ icon, value, label, delay }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 28 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.4 }}
-      transition={{ duration: 0.55, delay }}
-    >
-      <TiltCard>
-        <div className="ab-stat">
-          <span className="ab-stat-icon">{icon}</span>
-          <span className="ab-stat-val">{value}</span>
-          <span className="ab-stat-label">{label}</span>
-        </div>
-      </TiltCard>
-    </motion.div>
-  );
-}
 
 // ── Value card ────────────────────────────────────────────────────────────────
 function ValueCard({ icon, title, desc, delay }) {
