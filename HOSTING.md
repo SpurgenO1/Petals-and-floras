@@ -9,12 +9,18 @@ Your project is now prepared for production hosting using **Vercel** for the Rea
 2. Set the **Root Directory** to `frontend`.
 3. Vercel should auto-detect the **Build Command** (`npm run build`) and **Output Directory** (`build`).
 4. **Environment Variables**: In Vercel Project Settings, add:
-   - `REACT_APP_API_BASE_URL`: Your backend URL (e.g., `https://your-backend.onrender.com/api/`).
+   - `REACT_APP_API_BASE_URL`: Your backend URL (e.g., `https://petals-and-floras.onrender.com/api/` or `https://your-app.vercel.app/api/`).
 
 ### Clean URLs & Routing
-The `frontend/vercel.json` file I created ensures that:
-- Any refresh on an internal page (like `/about`) is redirected to `index.html` (handled by React Router).
-- API calls from the frontend can be proxied if needed.
+The `frontend/vercel.json` file handles SPA routing. If you want to proxy `/api/` calls to a different domain (like Render), you can update the `destination` field in `frontend/vercel.json`, but ensure you do NOT use brackets `[...]` as Vercel will fail to parse them.
+
+Example proxy in `frontend/vercel.json`:
+```json
+{
+  "source": "/api/(.*)",
+  "destination": "https://your-backend-url.onrender.com/api/$1"
+}
+```
 
 ## 2. Backend: Hosting on Render / Railway
 
