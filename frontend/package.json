@@ -18,6 +18,9 @@
     "three": "^0.183.2",
     "web-vitals": "^2.1.4"
   },
+  "devDependencies": {
+    "tailwindcss": "3.4.19"
+  },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
