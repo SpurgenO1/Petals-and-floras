@@ -8,6 +8,7 @@ function WhatsAppButton() {
       rel="noopener noreferrer" 
       className="whatsapp-sticky"
       title="Chat with us on WhatsApp"
+      aria-label="Chat with us on WhatsApp"
     >
       <div style={{ fontSize: '1.5rem' }}>💬</div>
     </a>

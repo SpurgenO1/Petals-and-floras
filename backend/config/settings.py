@@ -12,7 +12,9 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 import importlib.util
+import shutil
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -55,6 +57,43 @@ def env_int(name, default):
     if value is None:
         return default
     return int(value)
+
+
+def database_config_from_url(url):
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+
+    if scheme in {"postgres", "postgresql", "pgsql"}:
+        query = parse_qs(parsed.query)
+        config = {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": unquote(parsed.path.lstrip("/")),
+            "USER": unquote(parsed.username or ""),
+            "PASSWORD": unquote(parsed.password or ""),
+            "HOST": parsed.hostname or "",
+            "PORT": str(parsed.port or "5432"),
+        }
+
+        ssl_mode = query.get("sslmode", [""])[0]
+        if ssl_mode:
+            config["OPTIONS"] = {"sslmode": ssl_mode}
+
+        return config
+
+    if scheme in {"sqlite", "sqlite3"}:
+        database_path = unquote(parsed.path or "")
+        if database_path in {"", "/"}:
+            database_path = str(BASE_DIR / "db.sqlite3")
+
+        if os.name == "nt" and database_path.startswith("/") and len(database_path) > 2 and database_path[2] == ":":
+            database_path = database_path.lstrip("/")
+
+        return {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": database_path,
+        }
+
+    raise ValueError(f"Unsupported DATABASE_URL scheme: {scheme}")
 
 
 # Quick-start development settings - unsuitable for production
@@ -134,12 +173,35 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+
+if DATABASE_URL:
+    DATABASES = {
+        "default": database_config_from_url(DATABASE_URL),
     }
-}
+else:
+    sqlite_name = BASE_DIR / "db.sqlite3"
+    if DEBUG and os.name == "nt":
+        local_appdata = Path(os.environ.get("LOCALAPPDATA", BASE_DIR))
+        local_sqlite_dir = local_appdata / "PetalsAndFloras"
+        local_sqlite_dir.mkdir(parents=True, exist_ok=True)
+        local_sqlite_name = local_sqlite_dir / "db.sqlite3"
+
+        if not local_sqlite_name.exists() and sqlite_name.exists():
+            try:
+                shutil.copy2(sqlite_name, local_sqlite_name)
+                sqlite_name = local_sqlite_name
+            except OSError:
+                pass
+        else:
+            sqlite_name = local_sqlite_name
+
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': sqlite_name,
+        }
+    }
 
 
 # Password validation
@@ -241,7 +303,7 @@ CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Strict"
 CSRF_COOKIE_SAMESITE = "Strict"
 SESSION_COOKIE_AGE = env_int("DJANGO_SESSION_COOKIE_AGE", 60 * 60 * 2)
-SESSION_SAVE_EVERY_REQUEST = True
+SESSION_SAVE_EVERY_REQUEST = not DEBUG
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 CSRF_USE_SESSIONS = True
 CSRF_COOKIE_SECURE = not DEBUG

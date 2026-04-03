@@ -112,8 +112,6 @@ export default function Login({ authUser, onAuthSuccess }) {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@300;400;500;600&display=swap');
-
         .auth-page {
           min-height: 100vh;
           padding: calc(var(--nav-height) + 2rem) 1.25rem 4rem;

@@ -14,7 +14,6 @@ const staggerContainer = {
 function Home() {
   return (
     <div className="home-overhaul">
-      {/* 3D Hero Section */}
       <FrameAnimation />
 
       <section className="hero-cta-section">

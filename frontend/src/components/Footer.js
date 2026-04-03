@@ -3,9 +3,6 @@ import logoMark from "../assets/petals-floras-logo.png";
 function Footer() {
   return (
     <footer className="footer" style={{ padding: "4rem 5%", background: "#1a1a1e", color: "#fff" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,700&family=Cormorant+Garamond:ital,wght@0,500;1,500&display=swap');
-      `}</style>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "2rem", textAlign: "left" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.85rem", marginBottom: "1rem" }}>

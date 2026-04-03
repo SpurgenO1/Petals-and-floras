@@ -7,7 +7,12 @@ from django.utils import timezone
 
 
 def get_database():
-    client = MongoClient(settings.MONGO_URI)
+    client = MongoClient(
+        settings.MONGO_URI,
+        serverSelectionTimeoutMS=3000,
+        connectTimeoutMS=3000,
+        socketTimeoutMS=3000,
+    )
     return client[settings.MONGO_DB_NAME]
 
 

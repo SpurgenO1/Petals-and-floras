@@ -17,7 +17,7 @@
   --nav-height: 64px;
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,700&family=Manrope:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,700&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@300;400;500&family=Manrope:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&display=swap');
 
 * {
   box-sizing: border-box;
@@ -38,6 +38,11 @@ body {
 
 #root {
   min-height: 100vh;
+}
+
+.home-overhaul {
+  width: 100%;
+  overflow-x: clip;
 }
 
 h1, h2, h3, h4 {
@@ -143,6 +148,10 @@ a {
   padding-top: 0;
 }
 
+.route-loading {
+  min-height: 40vh;
+}
+
 /* 3D Hero Section */
 .hero-wrapper {
   position: relative;
@@ -230,6 +239,7 @@ a {
   pointer-events: auto;
   max-width: 800px;
   width: min(100%, 800px);
+  padding-inline: max(0rem, env(safe-area-inset-left)) max(0rem, env(safe-area-inset-right));
 }
 
 .hero-content h1 {
@@ -283,6 +293,14 @@ a {
   margin-right: auto;
 }
 
+.hero-static-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 50% 26%, rgba(255, 182, 210, 0.28), transparent 24%),
+    radial-gradient(circle at 12% 20%, rgba(214, 74, 110, 0.24), transparent 24%),
+    linear-gradient(160deg, #1b0a11 0%, #0a0306 52%, #220914 100%);
+}
+
 /* Premium Buttons */
 .btn {
   padding: 1rem 2.5rem;
@@ -330,6 +348,7 @@ a {
 
 .hero-cta-card {
   max-width: 720px;
+  width: min(100%, 720px);
   margin: 0 auto;
   padding: 2rem;
   border-radius: 28px;
@@ -389,6 +408,7 @@ a {
   background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(255,250,252,0.96) 100%);
   border-radius: 24px;
   padding: 2.5rem;
+  width: 100%;
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
   transition: var(--transition);
@@ -556,7 +576,11 @@ a {
   }
   .hero-overlay {
     justify-content: flex-end;
-    padding: calc(var(--nav-height) + 0.75rem) 1.25rem 3.25rem;
+    padding: calc(var(--nav-height) + 0.75rem) max(1rem, env(safe-area-inset-left)) calc(2.75rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-right));
+  }
+  .hero-content {
+    width: min(100%, 33rem);
+    margin-inline: auto;
   }
   .hero-content h1 {
     font-size: clamp(2.45rem, 12vw, 3.8rem);
@@ -573,6 +597,7 @@ a {
     margin-top: -1.5rem;
   }
   .hero-cta-card {
+    width: min(100%, 34rem);
     padding: 1.5rem;
   }
   .section-padding { padding: 60px 5%; }
@@ -580,12 +605,51 @@ a {
 }
 
 @media (max-width: 640px) {
-  .hero-wrapper { height: 155vh; }
+  .hero-wrapper { height: 165vh; }
   .hero-content {
     max-width: 100%;
+    width: min(100%, 30rem);
   }
+  .hero-content p { max-width: 30ch; }
+  .hero-cta-section { padding: 0 0.9rem 28px; }
+  .hero-cta-card { width: 100%; }
+  .section-title p { width: min(100%, 32rem); }
   .gallery-grid { grid-template-columns: 1fr; }
   .gallery-item { height: 220px; }
+}
+
+@media (max-width: 480px) {
+  .hero-wrapper { height: 172vh; }
+  .hero-overlay {
+    padding: calc(var(--nav-height) + 0.65rem) max(0.85rem, env(safe-area-inset-left)) calc(2.4rem + env(safe-area-inset-bottom)) max(0.85rem, env(safe-area-inset-right));
+  }
+  .hero-content {
+    width: min(100%, 25rem);
+  }
+  .hero-content h1 {
+    font-size: clamp(2.2rem, 12.5vw, 3.15rem);
+    line-height: 0.98;
+  }
+  .hero-content p {
+    font-size: 0.95rem;
+    max-width: 27ch;
+    margin-bottom: 1.5rem;
+  }
+  .btn {
+    width: 100%;
+    min-height: 48px;
+    padding-inline: 1.2rem;
+  }
+  .hero-cta-card {
+    border-radius: 22px;
+    padding: 1.2rem 1rem;
+  }
+  .premium-card {
+    padding: 1.4rem 1.1rem;
+  }
+  .section-padding {
+    padding: 54px 0.9rem;
+  }
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
@@ -595,5 +659,20 @@ a {
   }
   .hero-content {
     max-width: 680px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
