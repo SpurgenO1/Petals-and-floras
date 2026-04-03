@@ -795,6 +795,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
         }
       `}</style>
 
+
       <div className="petals-layer">
         {petals.map((style, index) => <FloatingPetal key={index} style={style} />)}
       </div>

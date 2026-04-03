@@ -31,42 +31,7 @@ function Home() {
         </motion.div>
       </section>
 
-      {/* About Section */}
-      <section id="about" className="section-padding">
-        <motion.div 
-          className="section-title"
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          variants={fadeInUp}
-        >
-          <h2>Our Philosophy</h2>
-          <p>Flowers brighten lives, express emotions, and create memories. At Petals and Flora, we focus on fresh blossoms, unique arrangements, and reliable delivery.</p>
-        </motion.div>
-
-        <div className="about-grid">
-          <motion.div 
-            className="premium-card"
-            initial={{ opacity: 0, x: -50 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-          >
-            <h3>Freshness Guaranteed</h3>
-            <p>Every bouquet is handcrafted with the freshest flowers sourced directly from the best growers.</p>
-          </motion.div>
-          <motion.div 
-            className="premium-card"
-            initial={{ opacity: 0, x: 50 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-          >
-            <h3>Unique Designs</h3>
-            <p>Our experienced florists create bespoke arrangements that tell a story and leave a lasting impression.</p>
-          </motion.div>
-        </div>
-      </section>
+     
 
       {/* Services Section */}
       <section className="section-padding" style={{ background: "rgba(214, 74, 110, 0.03)" }}>
