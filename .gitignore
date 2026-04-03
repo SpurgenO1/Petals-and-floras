@@ -35,3 +35,4 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+backend/config/__pycache__/settings.cpython-313.pyc

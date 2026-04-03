@@ -19,4 +19,5 @@ function AnimatedSection({ children, className = "" }) {
   );
 }
 
+
 export default AnimatedSection;
