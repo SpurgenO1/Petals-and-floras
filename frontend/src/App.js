@@ -1,17 +1,22 @@
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { BrowserRouter as Router, Route, Routes, useLocation } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
-import Home from "./pages/Home";
-import Products from "./pages/Products";
-import About from "./pages/About";
-import Contact from "./pages/Contact";
-import Cart from "./pages/Cart";
-import Checkout from "./pages/Checkout";
-import Login from "./pages/Login";
 import WhatsAppButton from "./components/WhatsAppButton";
 import LoadingScreen from "./components/LoadingScreen";
 import { getCurrentUser, logoutUser } from "./services/api";
+
+const Home = lazy(() => import("./pages/Home"));
+const Products = lazy(() => import("./pages/Products"));
+const About = lazy(() => import("./pages/About"));
+const Contact = lazy(() => import("./pages/Contact"));
+const Cart = lazy(() => import("./pages/Cart"));
+const Checkout = lazy(() => import("./pages/Checkout"));
+const Login = lazy(() => import("./pages/Login"));
+
+function RouteFallback() {
+  return <div className="route-loading" aria-hidden="true" />;
+}
 
 function AppLayout({
   authUser,
@@ -30,24 +35,26 @@ function AppLayout({
     <>
       <Navbar cartCount={cartCount} authUser={authUser} onLogout={handleLogout} />
       <main className={`app-content ${isHomePage ? "app-content-home" : "app-content-inner"}`}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/products" element={<Products cart={cart} setCart={setCart} />} />
-          <Route
-            path="/cart"
-            element={<Cart cart={cart} removeFromCart={removeFromCart} authUser={authUser} />}
-          />
-          <Route
-            path="/checkout"
-            element={<Checkout cart={cart} clearCart={clearCart} authUser={authUser} />}
-          />
-          <Route path="/about" element={<About />} />
-          <Route path="/contact" element={<Contact authUser={authUser} />} />
-          <Route
-            path="/login"
-            element={<Login authUser={authUser} onAuthSuccess={handleAuthSuccess} />}
-          />
-        </Routes>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/products" element={<Products cart={cart} setCart={setCart} />} />
+            <Route
+              path="/cart"
+              element={<Cart cart={cart} removeFromCart={removeFromCart} authUser={authUser} />}
+            />
+            <Route
+              path="/checkout"
+              element={<Checkout cart={cart} clearCart={clearCart} authUser={authUser} />}
+            />
+            <Route path="/about" element={<About />} />
+            <Route path="/contact" element={<Contact authUser={authUser} />} />
+            <Route
+              path="/login"
+              element={<Login authUser={authUser} onAuthSuccess={handleAuthSuccess} />}
+            />
+          </Routes>
+        </Suspense>
       </main>
       <WhatsAppButton />
       <Footer />
@@ -73,6 +80,7 @@ function App() {
     }
   });
   const initialAuthUserRef = useRef(authUser);
+  const [showLoader, setShowLoader] = useState(true);
 
   useEffect(() => {
     localStorage.setItem("pf_cart", JSON.stringify(cart));
@@ -113,8 +121,6 @@ function App() {
       mounted = false;
     };
   }, []);
-
-  const [showLoader, setShowLoader] = useState(true);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

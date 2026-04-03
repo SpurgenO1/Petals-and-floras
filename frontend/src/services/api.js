@@ -6,12 +6,7 @@ const getDefaultApiBaseUrl = () => {
   }
 
   if (typeof window !== "undefined") {
-    if (process.env.NODE_ENV === "development") {
-      return "/api/";
-    }
-
-    const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:8000/api/`;
+    return "/api/";
   }
 
   return "http://127.0.0.1:8000/api/";

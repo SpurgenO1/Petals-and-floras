@@ -90,8 +90,6 @@ export default function About() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Jost:wght@300;400;500&display=swap');
-
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         :root {
@@ -176,7 +174,7 @@ export default function About() {
 
         .ab-hero-sub {
           max-width: 560px; margin: 1.5rem auto 0;
-          color: rgba(255,255,255,0.5);
+          color: rgba(255,255,255,0.74);
           font-size: 1rem; font-weight: 300;
           line-height: 1.75; letter-spacing: 0.03em;
         }
@@ -238,7 +236,7 @@ export default function About() {
         }
         .ab-section-title h2 span { color: var(--rose-petal); }
         .ab-section-title p {
-          color: rgba(255,255,255,0.4);
+          color: rgba(255,255,255,0.7);
           font-size: 0.9rem; margin-top: 0.5rem;
           letter-spacing: 0.04em;
         }
@@ -265,7 +263,7 @@ export default function About() {
         }
         .ab-stat-label {
           font-size: 0.72rem; letter-spacing: 0.12em;
-          text-transform: uppercase; color: rgba(255,255,255,0.4);
+          text-transform: uppercase; color: rgba(255,255,255,0.72);
         }
 
         /* ── values grid ── */
@@ -291,7 +289,7 @@ export default function About() {
           margin-bottom: 0.6rem;
         }
         .ab-value-desc {
-          font-size: 0.85rem; color: rgba(255,255,255,0.5);
+          font-size: 0.85rem; color: rgba(255,255,255,0.74);
           line-height: 1.65; font-weight: 300;
         }
 
@@ -315,7 +313,7 @@ export default function About() {
           background: linear-gradient(90deg, rgba(255,255,255,0.15), transparent);
         }
         .ab-story p {
-          font-size: 0.92rem; color: rgba(255,255,255,0.55);
+          font-size: 0.92rem; color: rgba(255,255,255,0.76);
           line-height: 1.85; font-weight: 300; margin-bottom: 1rem;
           letter-spacing: 0.02em;
         }
@@ -370,7 +368,7 @@ export default function About() {
           display: flex; align-items: center; gap: 0.4rem;
         }
         .ab-ps-desc {
-          font-size: 0.86rem; color: rgba(255,255,255,0.5);
+          font-size: 0.86rem; color: rgba(255,255,255,0.74);
           line-height: 1.75; font-weight: 300;
         }
         @media (max-width: 640px) {

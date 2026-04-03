@@ -64,8 +64,6 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,700&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@300;400;500&display=swap');
-
         :root {
           --rose-deep:  #7b1a2e;
           --rose-mid:   #c0354e;
@@ -392,15 +390,31 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
           .nb-links { display: none; }
           .nb-burger { display: flex; }
           .nb-cart, .nb-auth { display: none; }
-          .nb-nav { height: 60px; }
+          .nb-nav { height: 60px; padding: 0 0.85rem; }
           .nb-drawer { top: 60px; }
-          .nb-brand-name { font-size: 1rem; }
+          .nb-brand { min-width: 0; max-width: calc(100vw - 76px); }
+          .nb-brand-badge { width: 31px; height: 40px; }
+          .nb-brand-name {
+            font-size: 0.96rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
           .nb-login-prompt {
             top: 72px;
             right: 0.75rem;
             left: 0.75rem;
             width: auto;
           }
+        }
+
+        @media (max-width: 420px) {
+          .nb-nav { padding: 0 0.7rem; }
+          .nb-brand { gap: 0.42rem; max-width: calc(100vw - 68px); }
+          .nb-brand-badge { width: 28px; height: 36px; }
+          .nb-brand-name { font-size: 0.88rem; letter-spacing: -0.02em; }
+          .nb-burger { width: 34px; height: 34px; }
+          .nb-drawer { padding: 1rem 0.9rem 1.25rem; }
         }
       `}</style>
 
@@ -464,6 +478,8 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
           className={`nb-burger ${menuOpen ? "open" : ""}`}
           onClick={() => setMenuOpen((open) => !open)}
           aria-label="Toggle menu"
+          aria-expanded={menuOpen}
+          aria-controls="mobile-navigation"
         >
           <span /><span /><span />
         </button>
@@ -499,6 +515,7 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
       <AnimatePresence>
         {menuOpen && (
           <motion.div
+            id="mobile-navigation"
             className="nb-drawer"
             initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}

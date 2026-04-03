@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { Link } from "react-router-dom";
 import { getProducts } from "../services/api";
 import { catalogProducts } from "../data/catalogProducts";
 
 const CATEGORY_INTEREST_STORAGE_KEY = "pf_category_interest";
+const MotionLink = motion(Link);
 
 const CATEGORY_STYLES = {
   Roses: { start: "#f6b3c2", end: "#8f1d35", label: "Rose" },
@@ -172,23 +174,9 @@ function ProductCard({ product, addToCart }) {
     setTimeout(() => setAdded(false), 1200);
   }
 
-  function handleCardKeyDown(event) {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      handleAdd();
-    }
-  }
-
   return (
     <TiltCard>
-      <div
-        className="card card-clickable"
-        role="button"
-        tabIndex={0}
-        onClick={handleAdd}
-        onKeyDown={handleCardKeyDown}
-        aria-label={`Add ${product.name} to cart`}
-      >
+      <div className="card card-clickable" onClick={handleAdd}>
         <div className="card-img-wrap">
           <img src={product.image} alt={product.name} className="card-img" />
           <div className="img-overlay" />
@@ -402,8 +390,6 @@ export default function Products({ cart = [], setCart = () => {} }) {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=Jost:wght@300;400;500&display=swap');
-
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         .section-padding { background: transparent !important; }
         .filter-bar, .filter-group { background: transparent !important; background-color: transparent !important; border: none !important; box-shadow: none !important; }
@@ -469,7 +455,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
         }
         .header h2 span { color: var(--rose-petal); }
         .header p {
-          color: rgba(255,255,255,0.6);
+          color: rgba(255,255,255,0.78);
           font-size: 0.95rem;
           margin-top: 0.8rem;
           font-weight: 300;
@@ -546,7 +532,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
           padding: 0.8rem 0.75rem 0.8rem 0;
         }
         .search-input::placeholder {
-          color: rgba(255,255,255,0.48);
+          color: rgba(255,255,255,0.64);
         }
 
         .chip-row {
@@ -559,6 +545,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
           z-index: 10;
         }
         .chip {
+          appearance: none;
           padding: 0.42rem 1.1rem;
           border-radius: 999px;
           font-size: 0.8rem;
@@ -569,6 +556,13 @@ export default function Products({ cart = [], setCart = () => {} }) {
           cursor: pointer;
           backdrop-filter: blur(10px);
           transition: all 0.25s;
+        }
+        .chip:focus-visible,
+        .btn-add:focus-visible,
+        .search-input:focus-visible,
+        .filter-glass select:focus-visible {
+          outline: 3px solid rgba(255, 183, 204, 0.78);
+          outline-offset: 2px;
         }
         .chip:hover, .chip.active {
           background: linear-gradient(135deg, var(--rose-mid), var(--rose-deep));
@@ -695,7 +689,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
           gap: 1rem;
         }
         .stock-note {
-          color: rgba(255,255,255,0.55);
+          color: rgba(255,255,255,0.74);
           font-size: 0.8rem;
           letter-spacing: 0.05em;
           text-transform: uppercase;
@@ -773,6 +767,12 @@ export default function Products({ cart = [], setCart = () => {} }) {
           box-shadow: 0 8px 30px rgba(192,53,78,0.55);
           border: 1px solid rgba(255,255,255,0.15);
           backdrop-filter: blur(10px);
+          text-decoration: none;
+          cursor: pointer;
+        }
+        .cart-bubble:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 12px 34px rgba(192,53,78,0.6);
         }
 
         @media (max-width: 900px) {
@@ -786,12 +786,36 @@ export default function Products({ cart = [], setCart = () => {} }) {
           .search-glass { width: 100%; }
           .filter-glass { width: 100%; justify-content: space-between; padding: 0.8rem 1rem; }
           .filter-glass select { min-width: 0; width: 100%; }
-          .grid { grid-template-columns: 1fr; gap: 1rem; }
-          .card-body { height: auto; padding: 1rem; }
-          .card-img-wrap { height: 180px; }
+          .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
+          .card-body { height: auto; padding: 0.8rem; }
+          .card-img-wrap { height: 148px; }
+          .badge { right: 10px; bottom: 10px; font-size: 0.82rem; padding: 0.22rem 0.65rem; }
+          .card-cat { font-size: 0.58rem; letter-spacing: 0.14em; margin-bottom: 0.3rem; }
+          .card-title { font-size: 1rem; margin-bottom: 0.45rem; }
+          .card-desc {
+            font-size: 0.78rem;
+            line-height: 1.4;
+            margin-bottom: 0.7rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+          }
+          .stock-note { font-size: 0.64rem; }
+          .btn-add { padding: 0.45rem 0.75rem; font-size: 0.72rem; }
           .card-footer { flex-direction: column; align-items: stretch; }
           .btn-add { width: 100%; }
           .cart-bubble { left: 1rem; right: 1rem; bottom: 5.75rem; text-align: center; }
+        }
+
+        @media (max-width: 420px) {
+          .page { padding: calc(var(--nav-height) + 1.2rem) 0.7rem 4rem; }
+          .grid { gap: 0.65rem; }
+          .card-img-wrap { height: 132px; }
+          .card-body { padding: 0.72rem; }
+          .card-title { font-size: 0.92rem; }
+          .card-desc { font-size: 0.74rem; }
+          .badge { font-size: 0.74rem; padding: 0.2rem 0.55rem; }
         }
       `}</style>
 
@@ -825,11 +849,13 @@ export default function Products({ cart = [], setCart = () => {} }) {
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search flowers, category, or product name"
+              aria-label="Search products"
             />
           </div>
           <div className="filter-glass">
             <span>Category</span>
             <select
+              aria-label="Filter products by category"
               value={categoryFilter}
               onChange={(event) => {
                 const nextCategory = event.target.value;
@@ -853,11 +879,16 @@ export default function Products({ cart = [], setCart = () => {} }) {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.35 }}
         >
-          <span className={`chip ${categoryFilter === "" ? "active" : ""}`} onClick={() => setCategoryFilter("")}>
+          <button
+            type="button"
+            className={`chip ${categoryFilter === "" ? "active" : ""}`}
+            onClick={() => setCategoryFilter("")}
+          >
             All
-          </span>
+          </button>
           {visibleCategories.map((category) => (
-            <span
+            <button
+              type="button"
               key={category}
               className={`chip ${categoryFilter === category ? "active" : ""}`}
               onClick={() => {
@@ -866,7 +897,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
               }}
             >
               {category}
-            </span>
+            </button>
           ))}
         </motion.div>
 
@@ -918,15 +949,18 @@ export default function Products({ cart = [], setCart = () => {} }) {
       </div>
 
       {cart.length > 0 && showCartBubble && (
-        <motion.div
+        <MotionLink
           className="cart-bubble"
+          to="/cart"
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 300 }}
+          whileTap={{ scale: 0.97 }}
+          aria-label={`Go to cart with ${cart.reduce((sum, item) => sum + (item.qty || 1), 0)} items`}
         >
           Cart: {cart.reduce((sum, item) => sum + (item.qty || 1), 0)} item
           {cart.reduce((sum, item) => sum + (item.qty || 1), 0) !== 1 ? "s" : ""}
-        </motion.div>
+        </MotionLink>
       )}
     </>
   );
