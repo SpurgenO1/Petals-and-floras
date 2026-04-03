@@ -30,15 +30,51 @@ function Home() {
         </motion.div>
       </section>
 
-     
+      <section id="about" className="section-padding">
+        <motion.div
+          className="section-title"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={fadeInUp}
+        >
+          <h2>Our Philosophy</h2>
+          <p>
+            Flowers brighten lives, express emotions, and create memories. At Petals and Flora,
+            we focus on fresh blossoms, unique arrangements, and reliable delivery.
+          </p>
+        </motion.div>
 
-      {/* Services Section */}
+        <div className="about-grid">
+          <motion.div
+            className="premium-card"
+            initial={{ opacity: 0, x: -50 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8 }}
+            viewport={{ once: true }}
+          >
+            <h3>Freshness Guaranteed</h3>
+            <p>Every bouquet is handcrafted with the freshest flowers sourced directly from the best growers.</p>
+          </motion.div>
+          <motion.div
+            className="premium-card"
+            initial={{ opacity: 0, x: 50 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8 }}
+            viewport={{ once: true }}
+          >
+            <h3>Unique Designs</h3>
+            <p>Our experienced florists create bespoke arrangements that tell a story and leave a lasting impression.</p>
+          </motion.div>
+        </div>
+      </section>
+
       <section className="section-padding" style={{ background: "rgba(214, 74, 110, 0.03)" }}>
         <div className="section-title">
           <h2>Our Services</h2>
           <p>Explore our actual offerings, verified for quality and reliability.</p>
         </div>
-        <motion.div 
+        <motion.div
           className="grid"
           variants={staggerContainer}
           initial="hidden"
@@ -60,7 +96,6 @@ function Home() {
         </motion.div>
       </section>
 
-      {/* Gallery Section */}
       <section className="section-padding">
         <div className="section-title">
           <h2>Visual Inspiration</h2>
@@ -75,8 +110,8 @@ function Home() {
             "Multi-color bouquet",
             "Blue background collection"
           ].map((item, i) => (
-            <motion.div 
-              key={i} 
+            <motion.div
+              key={i}
               className="gallery-item"
               initial={{ opacity: 0, scale: 0.9 }}
               whileInView={{ opacity: 1, scale: 1 }}
@@ -91,17 +126,16 @@ function Home() {
         </div>
       </section>
 
-      {/* Contact Section */}
       <section id="contact" className="section-padding" style={{ background: "#1a1a1e", color: "#fff" }}>
         <div className="about-grid">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
             <h2 style={{ color: "var(--primary)", fontSize: "2.5rem", marginBottom: "1.5rem" }}>Get in Touch</h2>
             <p style={{ fontSize: "1.1rem", opacity: 0.8, marginBottom: "2rem" }}>
-              We stay in constant communication with customers until the job is done. 
+              We stay in constant communication with customers until the job is done.
               For quotes, questions, or special requests — contact anytime.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -110,8 +144,8 @@ function Home() {
               <p>📧 sales@petalsandfloras.com</p>
             </div>
           </motion.div>
-          <motion.div 
-            className="premium-card" 
+          <motion.div
+            className="premium-card"
             style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}
             initial={{ opacity: 0, x: 50 }}
             whileInView={{ opacity: 1, x: 0 }}

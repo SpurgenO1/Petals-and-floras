@@ -411,6 +411,32 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
             grid-template-columns: 1fr;
           }
         }
+
+        @media (max-width: 640px) {
+          .checkout-page {
+            padding: calc(var(--nav-height) + 1.25rem) 0.85rem 3.5rem;
+          }
+
+          .checkout-card {
+            padding: 1.2rem;
+            border-radius: 22px;
+          }
+
+          .checkout-title {
+            font-size: 1.7rem;
+            margin-bottom: 1.1rem;
+          }
+
+          .summary-row,
+          .summary-total {
+            flex-wrap: wrap;
+          }
+
+          .summary-price {
+            width: 100%;
+            text-align: left;
+          }
+        }
       `}</style>
 
       <section className="checkout-page">

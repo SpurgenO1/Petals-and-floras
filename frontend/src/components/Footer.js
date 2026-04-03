@@ -3,9 +3,29 @@ import logoMark from "../assets/petals-floras-logo.png";
 function Footer() {
   return (
     <footer className="footer" style={{ padding: "4rem 5%", background: "#1a1a1e", color: "#fff" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "2rem", textAlign: "left" }}>
+      <style>{`
+        @media (max-width: 640px) {
+          .footer {
+            padding: 2.5rem 1rem calc(2rem + env(safe-area-inset-bottom)) !important;
+          }
+
+          .footer-grid {
+            gap: 1.5rem !important;
+            text-align: center !important;
+          }
+
+          .footer-brand {
+            justify-content: center;
+          }
+
+          .footer-brand-title {
+            font-size: 1.45rem !important;
+          }
+        }
+      `}</style>
+      <div className="footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "2rem", textAlign: "left" }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.85rem", marginBottom: "1rem" }}>
+          <div className="footer-brand" style={{ display: "flex", alignItems: "center", gap: "0.85rem", marginBottom: "1rem" }}>
             <span
               style={{
                 width: "48px",
@@ -20,6 +40,7 @@ function Footer() {
               />
             </span>
             <h3
+              className="footer-brand-title"
               style={{
                 color: "#fff",
                 marginBottom: 0,

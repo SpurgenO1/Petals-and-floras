@@ -34,6 +34,19 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
   }, [authUser]);
 
   useEffect(() => {
+    if (!menuOpen) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
     if (authUser || !showLoginPrompt || location.pathname === "/login") {
       return undefined;
     }
@@ -299,6 +312,8 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
           border-bottom: 1px solid rgba(255,255,255,0.1);
           padding: 1.2rem 1.5rem 1.8rem;
           display: flex; flex-direction: column; gap: 0.25rem;
+          max-height: calc(100dvh - 64px);
+          overflow-y: auto;
         }
         .nb-drawer-link {
           padding: 0.75rem 1rem;
@@ -392,6 +407,7 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
           .nb-cart, .nb-auth { display: none; }
           .nb-nav { height: 60px; padding: 0 0.85rem; }
           .nb-drawer { top: 60px; }
+          .nb-drawer { max-height: calc(100dvh - 60px); }
           .nb-brand { min-width: 0; max-width: calc(100vw - 76px); }
           .nb-brand-badge { width: 31px; height: 40px; }
           .nb-brand-name {
@@ -405,6 +421,13 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
             right: 0.75rem;
             left: 0.75rem;
             width: auto;
+          }
+          .nb-login-prompt-actions {
+            flex-wrap: wrap;
+          }
+          .nb-login-prompt-link,
+          .nb-login-prompt-dismiss {
+            flex: 1 1 140px;
           }
         }
 

@@ -132,8 +132,15 @@ function TiltCard({ children }) {
   const rotateY = useSpring(useTransform(x, [-0.5, 0.5], [-12, 12]), { stiffness: 200, damping: 20 });
   const glareX = useTransform(x, [-0.5, 0.5], ["0%", "100%"]);
   const glareY = useTransform(y, [-0.5, 0.5], ["0%", "100%"]);
+  const allowTilt =
+    typeof window !== "undefined" &&
+    window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
   function onMove(event) {
+    if (!allowTilt) {
+      return;
+    }
+
     const rect = ref.current.getBoundingClientRect();
     x.set((event.clientX - rect.left) / rect.width - 0.5);
     y.set((event.clientY - rect.top) / rect.height - 0.5);
@@ -147,9 +154,14 @@ function TiltCard({ children }) {
   return (
     <motion.div
       ref={ref}
-      onMouseMove={onMove}
-      onMouseLeave={onLeave}
-      style={{ rotateX, rotateY, transformStyle: "preserve-3d", perspective: 800 }}
+      onMouseMove={allowTilt ? onMove : undefined}
+      onMouseLeave={allowTilt ? onLeave : undefined}
+      style={{
+        rotateX: allowTilt ? rotateX : 0,
+        rotateY: allowTilt ? rotateY : 0,
+        transformStyle: "preserve-3d",
+        perspective: 800,
+      }}
       className="tilt-wrapper"
     >
       {children}
@@ -215,12 +227,13 @@ export default function Products({ cart = [], setCart = () => {} }) {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [showCartBubble, setShowCartBubble] = useState(false);
   const [categoryInterest, setCategoryInterest] = useState(() => readCategoryInterest());
+  const [isCompactView, setIsCompactView] = useState(false);
   const hasProductsRef = useRef(products.length > 0);
   const productsSignatureRef = useRef("");
   const lastFetchTimeRef = useRef(0);
   const fetchInFlightRef = useRef(false);
   const petalsRef = useRef(
-    Array.from({ length: 18 }, () => ({
+    Array.from({ length: 12 }, () => ({
       left: `${Math.random() * 100}%`,
       width: `${12 + Math.random() * 18}px`,
       height: `${16 + Math.random() * 22}px`,
@@ -229,6 +242,24 @@ export default function Products({ cart = [], setCart = () => {} }) {
       filter: `hue-rotate(${Math.random() * 30 - 15}deg)`,
     }))
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const compactQuery = window.matchMedia("(max-width: 640px), (prefers-reduced-motion: reduce)");
+    const syncCompactView = () => {
+      setIsCompactView(compactQuery.matches);
+    };
+
+    syncCompactView();
+    compactQuery.addEventListener("change", syncCompactView);
+
+    return () => {
+      compactQuery.removeEventListener("change", syncCompactView);
+    };
+  }, []);
 
   useEffect(() => {
     hasProductsRef.current = products.length > 0;
@@ -379,7 +410,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
         ...rankedCategories.filter((category) => category !== categoryFilter).slice(0, 4),
       ]
     : rankedCategories.slice(0, 5);
-  const petals = petalsRef.current;
+  const petals = isCompactView ? petalsRef.current.slice(0, 5) : petalsRef.current;
 
   useEffect(() => {
     if (categoryFilter && !categories.includes(categoryFilter)) {
@@ -786,18 +817,18 @@ export default function Products({ cart = [], setCart = () => {} }) {
           .search-glass { width: 100%; }
           .filter-glass { width: 100%; justify-content: space-between; padding: 0.8rem 1rem; }
           .filter-glass select { min-width: 0; width: 100%; }
-          .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
-          .card-body { height: auto; padding: 0.8rem; }
-          .card-img-wrap { height: 148px; }
+          .grid { grid-template-columns: 1fr; gap: 0.95rem; }
+          .card-body { height: auto; padding: 1rem; }
+          .card-img-wrap { height: 180px; }
           .badge { right: 10px; bottom: 10px; font-size: 0.82rem; padding: 0.22rem 0.65rem; }
-          .card-cat { font-size: 0.58rem; letter-spacing: 0.14em; margin-bottom: 0.3rem; }
-          .card-title { font-size: 1rem; margin-bottom: 0.45rem; }
+          .card-cat { font-size: 0.62rem; letter-spacing: 0.14em; margin-bottom: 0.35rem; }
+          .card-title { font-size: 1.08rem; margin-bottom: 0.45rem; }
           .card-desc {
-            font-size: 0.78rem;
-            line-height: 1.4;
+            font-size: 0.82rem;
+            line-height: 1.5;
             margin-bottom: 0.7rem;
             display: -webkit-box;
-            -webkit-line-clamp: 2;
+            -webkit-line-clamp: 3;
             -webkit-box-orient: vertical;
             overflow: hidden;
           }
@@ -811,10 +842,10 @@ export default function Products({ cart = [], setCart = () => {} }) {
         @media (max-width: 420px) {
           .page { padding: calc(var(--nav-height) + 1.2rem) 0.7rem 4rem; }
           .grid { gap: 0.65rem; }
-          .card-img-wrap { height: 132px; }
+          .card-img-wrap { height: 164px; }
           .card-body { padding: 0.72rem; }
-          .card-title { font-size: 0.92rem; }
-          .card-desc { font-size: 0.74rem; }
+          .card-title { font-size: 1rem; }
+          .card-desc { font-size: 0.78rem; }
           .badge { font-size: 0.74rem; padding: 0.2rem 0.55rem; }
         }
       `}</style>

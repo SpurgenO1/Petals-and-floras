@@ -34,10 +34,28 @@ body {
   line-height: 1.6;
   overflow-x: hidden;
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-rendering: optimizeLegibility;
 }
 
 #root {
   min-height: 100vh;
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
 }
 
 .home-overhaul {
@@ -602,6 +620,11 @@ a {
   }
   .section-padding { padding: 60px 5%; }
   .app-content-inner { padding-top: 0; }
+  .whatsapp-sticky {
+    right: 1rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+    font-size: 1.8rem;
+  }
 }
 
 @media (max-width: 640px) {
@@ -616,6 +639,12 @@ a {
   .section-title p { width: min(100%, 32rem); }
   .gallery-grid { grid-template-columns: 1fr; }
   .gallery-item { height: 220px; }
+  .section-title {
+    margin-bottom: 2.5rem;
+  }
+  .section-title h2 {
+    font-size: 2rem;
+  }
 }
 
 @media (max-width: 480px) {
@@ -649,6 +678,20 @@ a {
   }
   .section-padding {
     padding: 54px 0.9rem;
+  }
+  .hero-cta-title {
+    font-size: 1.8rem;
+    line-height: 1.08;
+  }
+  .hero-cta-card p,
+  .section-title p {
+    font-size: 0.94rem;
+    line-height: 1.65;
+  }
+  .about-grid,
+  .grid,
+  .gallery-grid {
+    gap: 1rem;
   }
 }
 

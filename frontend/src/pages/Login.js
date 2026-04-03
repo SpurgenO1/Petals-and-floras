@@ -324,6 +324,35 @@ export default function Login({ authUser, onAuthSuccess }) {
             padding: 2rem 1.25rem;
           }
         }
+
+        @media (max-width: 640px) {
+          .auth-page {
+            padding: calc(var(--nav-height) + 1.25rem) 0.85rem 3rem;
+            align-items: flex-start;
+          }
+
+          .auth-shell {
+            border-radius: 22px;
+          }
+
+          .auth-story {
+            padding: 1.5rem 1rem;
+            gap: 1.25rem;
+          }
+
+          .auth-card {
+            padding: 1.5rem 1rem;
+          }
+
+          .auth-form-title {
+            font-size: 1.8rem;
+          }
+
+          .auth-copy,
+          .auth-note {
+            font-size: 0.92rem;
+          }
+        }
       `}</style>
 
       <section className="auth-page">
