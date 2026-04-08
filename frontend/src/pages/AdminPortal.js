@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { motion, useSpring, useTransform, useMotionValue } from "framer-motion";
 import {
   createAdminProduct,
   createAdminStaffUser,
@@ -48,6 +49,18 @@ const autoResizeTextarea = (event) => {
   element.style.height = `${element.scrollHeight}px`;
 };
 
+// ─── 3D Falling Petal ─────────────────────────────────────────────────────────
+function FallingPetal({ style }) {
+  return (
+    <motion.div
+      style={style}
+      className="petal"
+      animate={{ y: ["0vh", "110vh"], rotate: [0, 360], opacity: [0, 0.7, 0] }}
+      transition={{ duration: style.duration, repeat: Infinity, ease: "linear", delay: style.delay }}
+    />
+  );
+}
+
 export default function AdminPortal({ authUser }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -71,6 +84,18 @@ export default function AdminPortal({ authUser }) {
   const hasAdminAccess = Boolean(authUser?.is_staff || authUser?.is_superuser);
   const productDetailMatch = location.pathname.match(/^\/admin\/products\/(\d+)\/?$/);
   const selectedProductId = productDetailMatch ? Number(productDetailMatch[1]) : null;
+  const [isCompactView, setIsCompactView] = useState(false);
+
+  const petalsRef = useRef(
+    Array.from({ length: 14 }, () => ({
+      left: `${Math.random() * 100}%`,
+      width: `${12 + Math.random() * 18}px`,
+      height: `${16 + Math.random() * 22}px`,
+      duration: 7 + Math.random() * 9,
+      delay: Math.random() * 10,
+      filter: `hue-rotate(${Math.random() * 30 - 15}deg)`,
+    }))
+  );
 
   const dashboard = useMemo(() => {
     const totalOrders = orders.length;
@@ -408,6 +433,17 @@ export default function AdminPortal({ authUser }) {
     }
   };
 
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const compactQuery = window.matchMedia("(max-width: 640px), (prefers-reduced-motion: reduce)");
+    const syncCompactView = () => setIsCompactView(compactQuery.matches);
+    syncCompactView();
+    compactQuery.addEventListener("change", syncCompactView);
+    return () => compactQuery.removeEventListener("change", syncCompactView);
+  }, []);
+
+  const petals = isCompactView ? petalsRef.current.slice(0, 5) : petalsRef.current;
+
   if (!authUser) return <Navigate to="/login" replace />;
 
   return (
@@ -434,10 +470,22 @@ export default function AdminPortal({ authUser }) {
           background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
           opacity:.5
         }
-        .aw{width:min(1320px,100%);margin:0 auto;display:grid;gap:1rem;position:relative;z-index:1}.card,.tableWrap,.msg{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.08);border-radius:22px;box-shadow:0 2px 0 rgba(255,255,255,.08) inset,0 20px 60px rgba(0,0,0,.45),0 4px 20px rgba(192,53,78,.18);backdrop-filter:blur(20px) saturate(1.8);-webkit-backdrop-filter:blur(20px) saturate(1.8)}
-        .card{padding:1rem}
+        .petals-layer { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
+        .petal {
+          position: absolute;
+          top: -60px;
+          background: radial-gradient(ellipse at 40% 30%, #f8b4c0, #c0354e 60%, #7b1a2e);
+          border-radius: 0 80% 0 80%;
+          opacity: 0.55;
+          will-change: transform;
+          box-shadow: 0 4px 12px rgba(123,26,46,0.3);
+        }
+        .aw{width:min(1320px,100%);margin:0 auto;display:grid;gap:1rem;position:relative;z-index:2}.card,.tableWrap,.msg{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.08);border-radius:20px;box-shadow:0 14px 42px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.1);backdrop-filter:blur(12px) saturate(1.8);-webkit-backdrop-filter:blur(12px) saturate(1.8);transform-style:preserve-3d;perspective:1000px;transition:all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);}
+        .card:hover,.tableWrap:hover{transform:translateY(-8px) scale(1.01);background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);box-shadow:0 24px 60px rgba(0,0,0,.5),0 0 30px rgba(192,53,78,.2),inset 0 1px 1px rgba(255,255,255,.2)}
+        .card{padding:1.5rem}
         .topActions{display:flex;justify-content:flex-end;gap:1rem}
         .row,.tabs,.actions{display:flex;flex-wrap:wrap;gap:.7rem}.chip,.tab,.btn,.btn2,.btnDanger,input,textarea,select{font:inherit;border-radius:14px;border:1px solid rgba(255,255,255,.16);background:rgba(60,5,20,.5);color:#fff}
+        .tabs{margin-bottom:1.5rem}
         .chip,.tab,.btn,.btn2,.btnDanger{padding:.7rem 1rem}.tab{cursor:pointer}.tab.active,.btn{background:linear-gradient(135deg,#e8536d,#7b1a2e);color:#fff;font-weight:700;border:1px solid rgba(255,255,255,.08);box-shadow:0 10px 24px rgba(192,53,78,.28)}
         .btn2,.btnDanger{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.btn2{background:rgba(60,5,20,.55);color:rgba(255,255,255,.86)}.btnDanger{background:linear-gradient(135deg,#ef4444,#991b1b);border:none;color:#fff;font-weight:700}.msg{padding:.9rem 1rem}.err{color:#fecaca;background:rgba(120,15,30,.36);border-color:rgba(239,68,68,.28)}
         .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem}.metric{padding:1rem}.metric strong{font-size:1.6rem;display:block;color:#fff}.metric span,.metric small,.muted{color:rgba(255,255,255,.68)}
@@ -467,6 +515,11 @@ export default function AdminPortal({ authUser }) {
         @media (max-width:820px){.productToolbar{grid-template-columns:1fr}}
       `}</style>
       <section className="ap">
+        <div className="petals-layer">
+          {petals.map((style, i) => (
+            <FallingPetal key={i} style={style} />
+          ))}
+        </div>
         <div className="aw">
           <div className="topActions">
             <Link className="btn2" to="/">Back To Store</Link>

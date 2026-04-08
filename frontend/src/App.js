@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { BrowserRouter as Router, Route, Routes, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
-import WhatsAppButton from "./components/WhatsAppButton";
 import LoadingScreen from "./components/LoadingScreen";
 import { getCurrentUser, logoutUser, setRuntimeAuthUser } from "./services/api";
 
@@ -59,7 +58,7 @@ function AppLayout({
           </Routes>
         </Suspense>
       </main>
-      <WhatsAppButton />
+
       <Footer />
     </>
   );
