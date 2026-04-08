@@ -470,7 +470,14 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
 
         <div className="nb-actions">
           {!menuOpen && (
-            authUser ? null : <Link to="/login" className="nb-auth-link">Login</Link>
+            authUser ? null : (
+              <Link
+                to="/login"
+                className={`nb-link nb-auth-link ${location.pathname === "/login" ? "nb-active" : ""}`}
+              >
+                Login
+              </Link>
+            )
           )}
           <button
             className={`nb-burger ${menuOpen ? "open" : ""}`}

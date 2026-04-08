@@ -17,6 +17,8 @@ import {
   updateAdminUser,
 } from "../services/api";
 
+const ADMIN_REFRESH_INTERVAL_MS = 45000;
+
 const tabs = [
   ["overview", "Overview"],
   ["products", "Products"],
@@ -50,6 +52,9 @@ export default function AdminPortal({ authUser }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [tab, setTab] = useState("overview");
+  const [productSearch, setProductSearch] = useState("");
+  const [productCategoryFilter, setProductCategoryFilter] = useState("all");
+  const [productSort, setProductSort] = useState("newest");
   const [overview, setOverview] = useState(null);
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -133,31 +138,115 @@ export default function AdminPortal({ authUser }) {
     () => products.find((product) => product.id === selectedProductId) || null,
     [products, selectedProductId]
   );
+  const productCategories = useMemo(
+    () => Array.from(new Set(products.map((product) => product.category || "Uncategorized"))).sort((a, b) => a.localeCompare(b)),
+    [products]
+  );
+  const filteredProducts = useMemo(() => {
+    const normalizedSearch = productSearch.trim().toLowerCase();
 
-  const loadAll = async () => {
-    setLoading(true);
+    return [...products]
+      .filter((product) => {
+        const category = product.category || "Uncategorized";
+        const matchesCategory = productCategoryFilter === "all" || category === productCategoryFilter;
+        const searchableText = [
+          product.name,
+          product.category,
+          product.description,
+          String(product.id || ""),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        const matchesSearch = !normalizedSearch || searchableText.includes(normalizedSearch);
+        return matchesCategory && matchesSearch;
+      })
+      .sort((left, right) => {
+        switch (productSort) {
+          case "name-asc":
+            return String(left.name || "").localeCompare(String(right.name || ""));
+          case "name-desc":
+            return String(right.name || "").localeCompare(String(left.name || ""));
+          case "price-low":
+            return Number(left.price || 0) - Number(right.price || 0);
+          case "price-high":
+            return Number(right.price || 0) - Number(left.price || 0);
+          case "oldest":
+            return Number(left.id || 0) - Number(right.id || 0);
+          case "newest":
+          default:
+            return Number(right.id || 0) - Number(left.id || 0);
+        }
+      });
+  }, [productCategoryFilter, productSearch, productSort, products]);
+
+  const loadAll = async ({ background = false } = {}) => {
+    if (!background) {
+      setLoading(true);
+    }
+
     setError("");
-    try {
-      const [a, b, c, d, e, f, g] = await Promise.all([
-        getAdminOverview(),
-        getAdminProducts(),
-        getAdminOrders(),
-        getAdminOrderHistory(),
-        getAdminFeedback(),
-        getAdminUsers(),
-        getAdminGroups(),
-      ]);
-      setOverview(a.data);
-      const loadedProducts = b.data?.results || [];
-      setProducts(loadedProducts);
-      setOrders(c.data?.results || []);
-      setHistoryEntries(d.data?.results || []);
-      setFeedbackEntries(e.data?.results || []);
-      setUsers(f.data?.results || []);
-      setGroups(g.data?.results || []);
-    } catch (requestError) {
-      setError(requestError?.response?.data?.error || requestError?.message || "Unable to load admin workspace.");
-    } finally {
+
+    const requests = await Promise.allSettled([
+      getAdminOverview(),
+      getAdminProducts(),
+      getAdminOrders(),
+      getAdminOrderHistory(),
+      getAdminFeedback(),
+      getAdminUsers(),
+      getAdminGroups(),
+    ]);
+
+    const [overviewResult, productsResult, ordersResult, historyResult, feedbackResult, usersResult, groupsResult] = requests;
+
+    if (overviewResult.status === "fulfilled") {
+      setOverview(overviewResult.value.data);
+    }
+
+    if (productsResult.status === "fulfilled") {
+      setProducts(productsResult.value.data?.results || []);
+    }
+
+    if (ordersResult.status === "fulfilled") {
+      setOrders(ordersResult.value.data?.results || []);
+    }
+
+    if (historyResult.status === "fulfilled") {
+      setHistoryEntries(historyResult.value.data?.results || []);
+    }
+
+    if (feedbackResult.status === "fulfilled") {
+      setFeedbackEntries(feedbackResult.value.data?.results || []);
+    }
+
+    if (usersResult.status === "fulfilled") {
+      setUsers(usersResult.value.data?.results || []);
+    }
+
+    if (groupsResult.status === "fulfilled") {
+      setGroups(groupsResult.value.data?.results || []);
+    }
+
+    const rejected = requests
+      .filter((result) => result.status === "rejected")
+      .map((result) => result.reason);
+
+    if (rejected.length) {
+      const primaryError = rejected[0];
+      const message =
+        primaryError?.response?.data?.error ||
+        primaryError?.message ||
+        "Some admin data could not be refreshed.";
+
+      setError(
+        requests.some((result) => result.status === "fulfilled")
+          ? `${message} The rest of the admin workspace is still available and will retry automatically.`
+          : message
+      );
+    }
+
+    if (!background) {
       setLoading(false);
     }
   };
@@ -168,6 +257,35 @@ export default function AdminPortal({ authUser }) {
     } else {
       setLoading(false);
     }
+  }, [hasAdminAccess]);
+
+  useEffect(() => {
+    if (!hasAdminAccess) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      loadAll({ background: true });
+    }, ADMIN_REFRESH_INTERVAL_MS);
+
+    const handleFocus = () => {
+      loadAll({ background: true });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadAll({ background: true });
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [hasAdminAccess]);
 
   useEffect(() => {
@@ -295,33 +413,58 @@ export default function AdminPortal({ authUser }) {
   return (
     <>
       <style>{`
-        .ap{min-height:100vh;padding:calc(var(--nav-height) + 1.5rem) 1rem 3rem;background:linear-gradient(180deg,#f8f4ee 0%,#f3ede3 48%,#efe7db 100%);color:#241c17;font-family:'Jost',sans-serif}
-        .aw{width:min(1320px,100%);margin:0 auto;display:grid;gap:1rem}.card,.tableWrap,.msg{border:1px solid rgba(88,66,43,.12);background:rgba(255,255,255,.86);border-radius:22px;box-shadow:0 18px 40px rgba(89,61,36,.10)}
+        .ap{
+          min-height:100vh;
+          padding:calc(var(--nav-height) + 1.5rem) 1rem 3rem;
+          background:
+            radial-gradient(ellipse 80% 60% at 20% 10%, rgba(192,53,78,0.35) 0%, transparent 55%),
+            radial-gradient(ellipse 60% 50% at 80% 85%, rgba(123,26,46,0.45) 0%, transparent 55%),
+            radial-gradient(ellipse 100% 100% at 50% 50%, #1a0510 0%, #0d0007 100%);
+          color:#f7ece6;
+          font-family:'Jost',sans-serif;
+          position:relative;
+          overflow:hidden
+        }
+        .ap::before{
+          content:"";
+          position:fixed;
+          inset:0;
+          z-index:0;
+          pointer-events:none;
+          background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
+          opacity:.5
+        }
+        .aw{width:min(1320px,100%);margin:0 auto;display:grid;gap:1rem;position:relative;z-index:1}.card,.tableWrap,.msg{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.08);border-radius:22px;box-shadow:0 2px 0 rgba(255,255,255,.08) inset,0 20px 60px rgba(0,0,0,.45),0 4px 20px rgba(192,53,78,.18);backdrop-filter:blur(20px) saturate(1.8);-webkit-backdrop-filter:blur(20px) saturate(1.8)}
         .card{padding:1rem}
         .topActions{display:flex;justify-content:flex-end;gap:1rem}
-        .row,.tabs,.actions{display:flex;flex-wrap:wrap;gap:.7rem}.chip,.tab,.btn,.btn2,.btnDanger,input,textarea,select{font:inherit;border-radius:14px;border:1px solid rgba(88,66,43,.14);background:#fff;color:#241c17}
-        .chip,.tab,.btn,.btn2,.btnDanger{padding:.7rem 1rem}.tab{cursor:pointer}.tab.active,.btn{background:linear-gradient(135deg,#d7b56d,#b37a1f);color:#201608;font-weight:700;border:none}
-        .btn2,.btnDanger{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.btn2{background:#fff7ec;color:#5a442b}.btnDanger{background:linear-gradient(135deg,#ef4444,#991b1b);border:none;color:#fff;font-weight:700}.msg{padding:.9rem 1rem}.err{color:#8a1f1f;background:#fde2e2}
-        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem}.metric{padding:1rem}.metric strong{font-size:1.6rem;display:block;color:#241c17}.metric span,.metric small,.muted{color:#6a5a4c}
-        .section h2{margin:0;color:#221912}.section p{color:#6a5a4c}
+        .row,.tabs,.actions{display:flex;flex-wrap:wrap;gap:.7rem}.chip,.tab,.btn,.btn2,.btnDanger,input,textarea,select{font:inherit;border-radius:14px;border:1px solid rgba(255,255,255,.16);background:rgba(60,5,20,.5);color:#fff}
+        .chip,.tab,.btn,.btn2,.btnDanger{padding:.7rem 1rem}.tab{cursor:pointer}.tab.active,.btn{background:linear-gradient(135deg,#e8536d,#7b1a2e);color:#fff;font-weight:700;border:1px solid rgba(255,255,255,.08);box-shadow:0 10px 24px rgba(192,53,78,.28)}
+        .btn2,.btnDanger{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.btn2{background:rgba(60,5,20,.55);color:rgba(255,255,255,.86)}.btnDanger{background:linear-gradient(135deg,#ef4444,#991b1b);border:none;color:#fff;font-weight:700}.msg{padding:.9rem 1rem}.err{color:#fecaca;background:rgba(120,15,30,.36);border-color:rgba(239,68,68,.28)}
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem}.metric{padding:1rem}.metric strong{font-size:1.6rem;display:block;color:#fff}.metric span,.metric small,.muted{color:rgba(255,255,255,.68)}
+        .section h2{margin:0;color:#fff}.section p{color:rgba(255,255,255,.68)}
         .formGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.8rem}.full{grid-column:1/-1}
-        input,textarea,select{width:100%;padding:.7rem .8rem;outline:none}textarea{min-height:140px;resize:none;overflow:hidden}.tableWrap{overflow:auto}.table{width:100%;min-width:920px;border-collapse:collapse}.table th,.table td{padding:.8rem;border-bottom:1px solid rgba(88,66,43,.10);vertical-align:top;text-align:left}.table th{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:#7a6a5c}
-        .stack{display:grid;gap:.35rem}.multi{min-height:96px}.pill{display:inline-flex;padding:.28rem .65rem;border-radius:999px;background:#f7efe3;border:1px solid rgba(88,66,43,.12);color:#5f4c3b}
+        input,textarea,select{width:100%;padding:.7rem .8rem;outline:none}input::placeholder,textarea::placeholder{color:rgba(255,255,255,.48)}textarea{min-height:140px;resize:none;overflow:hidden}.tableWrap{overflow:auto}.table{width:100%;min-width:920px;border-collapse:collapse}.table th,.table td{padding:.8rem;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top;text-align:left}.table th{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+        .stack{display:grid;gap:.35rem}.multi{min-height:96px}.pill{display:inline-flex;padding:.28rem .65rem;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.84)}
         .heroGrid{display:grid;grid-template-columns:1.5fr 1fr;gap:1rem}.subGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-top:1rem}
-        .chartCard{padding:1rem}.chartTitle{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;margin-bottom:.8rem}.chartTitle strong{font-size:1.05rem;color:#241c17}
-        .bars{display:grid;gap:.7rem}.barRow{display:grid;gap:.35rem}.barMeta{display:flex;justify-content:space-between;gap:.75rem;font-size:.9rem;color:#5d4f41}.barTrack{height:10px;border-radius:999px;background:#efe4d6;overflow:hidden}.barFill{height:100%;border-radius:999px;background:linear-gradient(135deg,#d7b56d,#e8536d)}
-        .spark{display:flex;align-items:flex-end;gap:.55rem;height:180px;padding-top:1rem}.sparkCol{flex:1;display:grid;gap:.45rem;justify-items:center}.sparkBar{width:100%;max-width:42px;border-radius:14px 14px 8px 8px;background:linear-gradient(180deg,#d7b56d,#b37a1f);min-height:12px}.sparkLabel,.sparkValue{font-size:.78rem;color:#6d5c4d;text-align:center}
-        .attentionList{display:grid;gap:.7rem;margin-top:1rem}.attentionItem{padding:.85rem 1rem;border-radius:16px;background:#fff9f0;border:1px solid rgba(88,66,43,.08);color:#4d3d30}
+        .chartCard{padding:1rem}.chartTitle{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;margin-bottom:.8rem}.chartTitle strong{font-size:1.05rem;color:#fff}
+        .bars{display:grid;gap:.7rem}.barRow{display:grid;gap:.35rem}.barMeta{display:flex;justify-content:space-between;gap:.75rem;font-size:.9rem;color:rgba(255,255,255,.72)}.barTrack{height:10px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}.barFill{height:100%;border-radius:999px;background:linear-gradient(135deg,#d7b56d,#e8536d)}
+        .spark{display:flex;align-items:flex-end;gap:.55rem;height:180px;padding-top:1rem}.sparkCol{flex:1;display:grid;gap:.45rem;justify-items:center}.sparkBar{width:100%;max-width:42px;border-radius:14px 14px 8px 8px;background:linear-gradient(180deg,#d7b56d,#b37a1f);min-height:12px}.sparkLabel,.sparkValue{font-size:.78rem;color:rgba(255,255,255,.64);text-align:center}
+        .attentionList{display:grid;gap:.7rem;margin-top:1rem}.attentionItem{padding:.85rem 1rem;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.84)}
         .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin-top:1rem}
+        .productToolbar{display:grid;grid-template-columns:minmax(220px,1.2fr) minmax(190px,.8fr) minmax(190px,.8fr);gap:.8rem;margin-top:1rem}
+        .productToolbarMeta{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-top:.9rem;color:rgba(255,255,255,.68);font-size:.9rem}
         .productList{display:grid;gap:.7rem;max-height:720px;overflow:auto;padding-right:.2rem;margin-top:1rem}
-        .productItem{width:100%;text-align:left;padding:1rem 1.1rem;border-radius:18px;border:1px solid rgba(88,66,43,.10);background:#fffaf4;color:#241c17;cursor:pointer}
+        .productItem{width:100%;text-align:left;padding:1rem 1.1rem;border-radius:18px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#fff;cursor:pointer}
         .productItem.active{background:linear-gradient(135deg,rgba(215,181,109,.18),rgba(232,83,109,.14));border-color:rgba(215,181,109,.42)}
-        .productNameBtn{all:unset;cursor:pointer;font-size:1.06rem;font-weight:700;line-height:1.4;color:#241c17}
-        .productMeta{display:flex;justify-content:space-between;gap:.75rem;margin-top:.45rem;color:#6d5c4d;font-size:.88rem}
+        .productNameBtn{all:unset;cursor:pointer;font-size:1.06rem;font-weight:700;line-height:1.4;color:#fff}
+        .productMeta{display:flex;justify-content:space-between;gap:.75rem;margin-top:.45rem;color:rgba(255,255,255,.64);font-size:.88rem}
         .detailCard{display:grid;gap:1rem}
         .detailHeader{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start}
         .detailHeader h3{margin:0;font-size:1.3rem}
+        input:focus,textarea:focus,select:focus{border-color:rgba(232,83,109,.8);box-shadow:0 0 0 3px rgba(232,83,109,.14);background:rgba(255,255,255,.08)}
+        select option{background:#2d0616;color:#fff}
         @media (max-width:980px){.heroGrid{grid-template-columns:1fr}}
+        @media (max-width:820px){.productToolbar{grid-template-columns:1fr}}
       `}</style>
       <section className="ap">
         <div className="aw">
@@ -513,8 +656,52 @@ export default function AdminPortal({ authUser }) {
                   ) : (
                     <>
                       <div className="section"><h2>Product List</h2><p>Click a product name to open its full-screen detail editor.</p></div>
+                      <div className="productToolbar">
+                        <input
+                          type="text"
+                          placeholder="Search by name, ID, category, or description"
+                          value={productSearch}
+                          onChange={(event) => setProductSearch(event.target.value)}
+                        />
+                        <select
+                          value={productCategoryFilter}
+                          onChange={(event) => setProductCategoryFilter(event.target.value)}
+                        >
+                          <option value="all">All Categories</option>
+                          {productCategories.map((category) => (
+                            <option key={category} value={category}>{category}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={productSort}
+                          onChange={(event) => setProductSort(event.target.value)}
+                        >
+                          <option value="newest">Newest First</option>
+                          <option value="oldest">Oldest First</option>
+                          <option value="name-asc">Name A-Z</option>
+                          <option value="name-desc">Name Z-A</option>
+                          <option value="price-low">Price Low To High</option>
+                          <option value="price-high">Price High To Low</option>
+                        </select>
+                      </div>
+                      <div className="productToolbarMeta">
+                        <span>{filteredProducts.length} product{filteredProducts.length === 1 ? "" : "s"} shown</span>
+                        {(productSearch || productCategoryFilter !== "all" || productSort !== "newest") ? (
+                          <button
+                            type="button"
+                            className="btn2"
+                            onClick={() => {
+                              setProductSearch("");
+                              setProductCategoryFilter("all");
+                              setProductSort("newest");
+                            }}
+                          >
+                            Reset Filters
+                          </button>
+                        ) : <span className="muted">All products</span>}
+                      </div>
                       <div className="productList">
-                        {products.map((product) => (
+                        {filteredProducts.map((product) => (
                           <button
                             key={product.id}
                             type="button"
@@ -532,6 +719,9 @@ export default function AdminPortal({ authUser }) {
                             </div>
                           </button>
                         ))}
+                        {!filteredProducts.length ? (
+                          <div className="msg">No products matched the current search, category, or sort view.</div>
+                        ) : null}
                       </div>
                     </>
                   )}

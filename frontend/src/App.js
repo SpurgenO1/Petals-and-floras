@@ -4,7 +4,7 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import WhatsAppButton from "./components/WhatsAppButton";
 import LoadingScreen from "./components/LoadingScreen";
-import { getCurrentUser, logoutUser } from "./services/api";
+import { getCurrentUser, logoutUser, setRuntimeAuthUser } from "./services/api";
 
 const Home = lazy(() => import("./pages/Home"));
 const Products = lazy(() => import("./pages/Products"));
@@ -90,6 +90,8 @@ function App() {
   }, [cart]);
 
   useEffect(() => {
+    setRuntimeAuthUser(authUser);
+
     try {
       if (authUser) {
         localStorage.setItem("pf_auth_user", JSON.stringify(authUser));

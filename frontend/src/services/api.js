@@ -60,6 +60,7 @@ const getDefaultApiBaseUrl = () => {
 
 const API_BASE_URL = getDefaultApiBaseUrl();
 const SAME_ORIGIN_API_BASE_URL = buildSameOriginApiUrl();
+let runtimeAuthUser = null;
 
 // Validate base URL is https in production
 if (process.env.NODE_ENV === "production" && !API_BASE_URL.startsWith("https://")) {
@@ -72,6 +73,39 @@ const API = axios.create({
   withCredentials: true,
 });
 
+const prepareRequestConfig = async (config, baseURL) => {
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Requested-With": "XMLHttpRequest",
+    ...(config.headers || {}),
+  };
+  const method = String(config.method || "get").toUpperCase();
+  const storedAuthUser = getStoredAuthUser();
+
+  if (storedAuthUser?.email && !headers["X-Debug-User-Email"]) {
+    headers["X-Debug-User-Email"] = storedAuthUser.email;
+  }
+
+  if (!["GET", "HEAD", "OPTIONS"].includes(method) && !headers["X-CSRFToken"]) {
+    try {
+      const csrfToken = await ensureCsrfToken();
+      if (csrfToken) {
+        headers["X-CSRFToken"] = csrfToken;
+      }
+    } catch {
+      // Let the real request surface the error if CSRF bootstrap fails.
+    }
+  }
+
+  return {
+    ...config,
+    baseURL,
+    withCredentials: true,
+    timeout: 10000,
+    headers,
+  };
+};
+
 const requestWithFallback = async (config) => {
   try {
     return await API.request(config);
@@ -82,24 +116,32 @@ const requestWithFallback = async (config) => {
       API_BASE_URL !== SAME_ORIGIN_API_BASE_URL;
 
     if (!shouldRetryOnSameOrigin) {
+      const shouldRetryUnauthorized =
+        error?.response?.status === 401 &&
+        Boolean(getStoredAuthUser()?.email) &&
+        !config.__retriedUnauthorized;
+
+      if (shouldRetryUnauthorized) {
+        const retryConfig = await prepareRequestConfig(
+          { ...config, __retriedUnauthorized: true },
+          SAME_ORIGIN_API_BASE_URL
+        );
+        return axios.request(retryConfig);
+      }
+
       throw error;
     }
 
-    return axios.request({
-      ...config,
-      baseURL: SAME_ORIGIN_API_BASE_URL,
-      withCredentials: true,
-      timeout: 10000,
-      headers: {
-        "Content-Type": "application/json",
-        "X-Requested-With": "XMLHttpRequest",
-        ...(config.headers || {}),
-      },
-    });
+    const fallbackConfig = await prepareRequestConfig(config, SAME_ORIGIN_API_BASE_URL);
+    return axios.request(fallbackConfig);
   }
 };
 
 const getStoredAuthUser = () => {
+  if (runtimeAuthUser?.email) {
+    return runtimeAuthUser;
+  }
+
   if (typeof window === "undefined") {
     return null;
   }
@@ -196,6 +238,10 @@ export const createPaymentOrder = (amountInPaise) => {
     console.error("Failed to create payment order:", error);
     throw error;
   }
+};
+
+export const setRuntimeAuthUser = (user) => {
+  runtimeAuthUser = user && typeof user === "object" ? user : null;
 };
 
 export const getCurrentUser = () => requestWithFallback({ method: "get", url: "auth/me/" });

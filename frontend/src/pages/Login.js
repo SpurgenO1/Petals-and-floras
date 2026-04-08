@@ -5,6 +5,8 @@ import { getCurrentUser, loginUser, registerUser } from "../services/api";
 const initialLoginState = { email: "", password: "" };
 const initialRegisterState = { name: "", email: "", confirmEmail: "", password: "" };
 
+const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
 function extractError(error, fallback) {
   const data = error?.response?.data;
   if (!data) {
@@ -34,6 +36,37 @@ function extractError(error, fallback) {
   }
 
   return fallback;
+}
+
+async function resolveAuthenticatedUser(fallbackUser = null) {
+  const retryDelays = [0, 150, 400];
+
+  for (const delay of retryDelays) {
+    if (delay > 0) {
+      await wait(delay);
+    }
+
+    try {
+      const sessionResponse = await getCurrentUser();
+      if (sessionResponse?.data) {
+        return {
+          user: sessionResponse.data,
+          sessionVerified: true,
+        };
+      }
+    } catch {
+      // Retry a few times because the session cookie can lag behind the login response.
+    }
+  }
+
+  if (fallbackUser) {
+    return {
+      user: fallbackUser,
+      sessionVerified: false,
+    };
+  }
+
+  throw new Error("Login succeeded, but the Django session was not created. Please sign in again.");
 }
 
 export default function Login({ authUser, onAuthSuccess }) {
@@ -119,14 +152,14 @@ export default function Login({ authUser, onAuthSuccess }) {
         return;
       }
 
-      const sessionResponse = await getCurrentUser().catch(() => null);
-      const authenticatedUser = sessionResponse?.data || authResponse.data?.user;
-      if (!sessionResponse?.data) {
-        throw new Error("Login succeeded, but the Django session was not created. Please sign in again.");
-      }
+      const { user: authenticatedUser, sessionVerified } = await resolveAuthenticatedUser(authResponse.data?.user);
 
       onAuthSuccess?.(authenticatedUser);
-      setMessage(authResponse.data?.message || "Logged in successfully");
+      setMessage(
+        sessionVerified
+          ? (authResponse.data?.message || "Logged in successfully")
+          : "Logged in successfully."
+      );
       navigate("/", { replace: true });
 
     } catch (requestError) {
@@ -233,29 +266,52 @@ export default function Login({ authUser, onAuthSuccess }) {
         .auth-tabs {
           display: inline-grid;
           grid-template-columns: 1fr 1fr;
-          gap: 0.35rem;
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.08);
-          padding: 0.35rem;
+          gap: 0.45rem;
+          background: rgba(60, 5, 20, 0.46);
+          border: 1px solid rgba(255,255,255,0.1);
+          padding: 0.4rem;
           border-radius: 999px;
           margin-bottom: 1.5rem;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+          backdrop-filter: blur(14px);
         }
 
         .auth-tab {
-          border: none;
+          position: relative;
+          border: 1px solid transparent;
           border-radius: 999px;
-          padding: 0.8rem 1rem;
-          background: transparent;
+          padding: 0.8rem 1.15rem;
+          background: rgba(255,255,255,0.02);
           color: rgba(255,255,255,0.62);
           cursor: pointer;
           font: inherit;
-          transition: all 0.22s ease;
+          font-size: 0.92rem;
+          letter-spacing: 0.03em;
+          transition: transform 0.22s ease, color 0.22s ease, border-color 0.22s ease, background 0.22s ease, box-shadow 0.22s ease;
+        }
+
+        .auth-tab:hover {
+          color: #fff;
+          border-color: rgba(232, 83, 109, 0.22);
+          background: rgba(192, 53, 78, 0.12);
         }
 
         .auth-tab.active {
-          background: linear-gradient(135deg, #e8536d, #7b1a2e);
+          background: linear-gradient(135deg, rgba(232, 83, 109, 0.96), rgba(123, 26, 46, 0.96));
           color: #fff;
-          box-shadow: 0 10px 24px rgba(232, 83, 109, 0.28);
+          border-color: rgba(255,255,255,0.08);
+          box-shadow:
+            0 10px 24px rgba(192, 53, 78, 0.28),
+            inset 0 1px 0 rgba(255,255,255,0.14);
+        }
+
+        .auth-tab.active::after {
+          content: "";
+          position: absolute;
+          inset: 1px;
+          border-radius: inherit;
+          background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0));
+          pointer-events: none;
         }
 
         .auth-form-title {
