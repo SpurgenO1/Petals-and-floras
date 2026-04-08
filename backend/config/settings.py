@@ -59,6 +59,11 @@ def env_int(name, default):
     return int(value)
 
 
+def env_path(name, default=""):
+    value = os.environ.get(name, default).strip()
+    return Path(value).expanduser() if value else None
+
+
 def database_config_from_url(url):
     parsed = urlparse(url)
     scheme = parsed.scheme.lower()
@@ -133,6 +138,18 @@ INSTALLED_APPS = [
 if importlib.util.find_spec("jazzmin") is not None:
     INSTALLED_APPS.insert(0, "jazzmin")
 
+HAS_ALLAUTH = importlib.util.find_spec("allauth") is not None
+if HAS_ALLAUTH:
+    INSTALLED_APPS.extend(
+        [
+            'django.contrib.sites',
+            'allauth',
+            'allauth.account',
+            'allauth.socialaccount',
+            'allauth.socialaccount.providers.google',
+        ]
+    )
+
 HAS_WHITENOISE = importlib.util.find_spec("whitenoise") is not None
 
 MIDDLEWARE = [
@@ -146,6 +163,12 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+if HAS_ALLAUTH:
+    MIDDLEWARE.insert(
+        MIDDLEWARE.index('django.contrib.auth.middleware.AuthenticationMiddleware') + 1,
+        'allauth.account.middleware.AccountMiddleware',
+    )
 
 if HAS_WHITENOISE:
     MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
@@ -169,6 +192,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+SITE_ID = 1
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
@@ -181,9 +210,12 @@ if DATABASE_URL:
     }
 else:
     sqlite_name = BASE_DIR / "db.sqlite3"
-    if DEBUG and os.name == "nt":
+    local_sqlite_override = env_path("DJANGO_LOCAL_SQLITE_DIR")
+    use_local_appdata_sqlite = env_bool("DJANGO_USE_LOCAL_APPDATA_SQLITE", False)
+
+    if DEBUG and os.name == "nt" and (use_local_appdata_sqlite or local_sqlite_override):
         local_appdata = Path(os.environ.get("LOCALAPPDATA", BASE_DIR))
-        local_sqlite_dir = local_appdata / "PetalsAndFloras"
+        local_sqlite_dir = local_sqlite_override or (local_appdata / "PetalsAndFloras")
         local_sqlite_dir.mkdir(parents=True, exist_ok=True)
         local_sqlite_name = local_sqlite_dir / "db.sqlite3"
 
@@ -261,6 +293,28 @@ MONGO_DB_NAME = os.environ.get('MONGO_DB_NAME', 'petals_flora_db')
 RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID', '')
 RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '')
 
+DEFAULT_EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+if DEBUG and not os.environ.get("DJANGO_EMAIL_BACKEND"):
+    if not os.environ.get("DJANGO_EMAIL_HOST_USER") or not os.environ.get("DJANGO_EMAIL_HOST_PASSWORD"):
+        DEFAULT_EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+EMAIL_BACKEND = os.environ.get(
+    "DJANGO_EMAIL_BACKEND",
+    DEFAULT_EMAIL_BACKEND,
+)
+EMAIL_HOST = os.environ.get("DJANGO_EMAIL_HOST", "localhost")
+EMAIL_PORT = env_int("DJANGO_EMAIL_PORT", 587)
+EMAIL_HOST_USER = os.environ.get("DJANGO_EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("DJANGO_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("DJANGO_EMAIL_USE_TLS", True)
+EMAIL_USE_SSL = env_bool("DJANGO_EMAIL_USE_SSL", False)
+EMAIL_TIMEOUT = env_int("DJANGO_EMAIL_TIMEOUT", 20)
+DEFAULT_FROM_EMAIL = os.environ.get("DJANGO_DEFAULT_FROM_EMAIL", "Petals & Flora <no-reply@petalsandfloras.com>")
+FRONTEND_BASE_URL = os.environ.get(
+    "FRONTEND_BASE_URL",
+    CORS_ALLOWED_ORIGINS[0] if CORS_ALLOWED_ORIGINS else ("http://localhost:3000" if DEBUG else ""),
+).rstrip("/")
+
 REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
@@ -300,8 +354,14 @@ APPEND_SLASH = True
 
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = "Strict"
-CSRF_COOKIE_SAMESITE = "Strict"
+SESSION_COOKIE_SAMESITE = os.environ.get(
+    "DJANGO_SESSION_COOKIE_SAMESITE",
+    "Lax" if DEBUG else "None",
+)
+CSRF_COOKIE_SAMESITE = os.environ.get(
+    "DJANGO_CSRF_COOKIE_SAMESITE",
+    "Lax" if DEBUG else "None",
+)
 SESSION_COOKIE_AGE = env_int("DJANGO_SESSION_COOKIE_AGE", 60 * 60 * 2)
 SESSION_SAVE_EVERY_REQUEST = not DEBUG
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True

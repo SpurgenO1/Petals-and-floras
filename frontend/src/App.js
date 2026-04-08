@@ -13,6 +13,7 @@ const Contact = lazy(() => import("./pages/Contact"));
 const Cart = lazy(() => import("./pages/Cart"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const Login = lazy(() => import("./pages/Login"));
+const AdminPortal = lazy(() => import("./pages/AdminPortal"));
 
 function RouteFallback() {
   return <div className="route-loading" aria-hidden="true" />;
@@ -53,6 +54,8 @@ function AppLayout({
               path="/login"
               element={<Login authUser={authUser} onAuthSuccess={handleAuthSuccess} />}
             />
+            <Route path="/admin" element={<AdminPortal authUser={authUser} />} />
+            <Route path="/admin/*" element={<AdminPortal authUser={authUser} />} />
           </Routes>
         </Suspense>
       </main>

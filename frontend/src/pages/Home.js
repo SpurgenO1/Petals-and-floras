@@ -82,10 +82,9 @@ function Home() {
           viewport={{ once: true }}
         >
           {[
-            { title: "Floral Arrangements", desc: "Weddings, Events, Sympathy arrangements.", icon: "💐" },
+            { title: "Floral Arrangements", desc: "Weddings,All Kind of Events", icon: "💐" },
             { title: "Daily Delivery", desc: "Reliable and fresh flower delivery to your doorstep.", icon: "🚚" },
-            { title: "Custom Orders", desc: "Custom bouquets and unique gift baskets.", icon: "🎨" },
-            { title: "Plant Care", desc: "Expert tips and support to keep your greenery thriving.", icon: "🌿" }
+            { title: "Custom Orders", desc: "Custom bouquets and unique gift baskets.", icon: "🎨" }
           ].map((service, i) => (
             <motion.div key={i} className="premium-card text-center" variants={fadeInUp}>
               <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>{service.icon}</div>

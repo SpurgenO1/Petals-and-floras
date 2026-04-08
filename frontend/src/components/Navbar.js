@@ -74,6 +74,8 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
     { to: "/contact", label: "Contact" },
   ];
 
+  const hasAdminAccess = Boolean(authUser?.is_staff || authUser?.is_superuser);
+
   return (
     <>
       <style>{`
@@ -230,38 +232,6 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
           color: #fff;
         }
 
-        .nb-auth {
-          display: flex;
-          align-items: center;
-          gap: 0.55rem;
-          margin-left: 0.75rem;
-        }
-
-        .nb-auth-chip,
-        .nb-auth-link,
-        .nb-auth-button {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 999px;
-          min-height: 36px;
-          padding: 0.45rem 0.95rem;
-          font-size: 0.76rem;
-          letter-spacing: 0.06em;
-          text-decoration: none;
-          transition: all 0.22s ease;
-        }
-
-        .nb-auth-chip {
-          background: rgba(255,255,255,0.07);
-          border: 1px solid rgba(255,255,255,0.12);
-          color: rgba(255,255,255,0.82);
-          max-width: 180px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
         .nb-auth-link {
           background: linear-gradient(135deg, rgba(232,83,109,0.95), rgba(123,26,46,0.95));
           color: #fff;
@@ -269,22 +239,20 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
           box-shadow: 0 10px 24px rgba(192,53,78,0.28);
         }
 
-        .nb-auth-button {
-          border: 1px solid rgba(255,255,255,0.12);
-          background: rgba(255,255,255,0.04);
-          color: rgba(255,255,255,0.82);
-          cursor: pointer;
-          font-family: inherit;
-        }
-
-        .nb-auth-link:hover,
-        .nb-auth-button:hover {
+        .nb-auth-link:hover {
           transform: translateY(-1px);
           color: #fff;
         }
 
+        .nb-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.7rem;
+          margin-left: 0.75rem;
+        }
+
         .nb-burger {
-          display: none;
+          display: flex;
           flex-direction: column; gap: 5px;
           width: 36px; height: 36px;
           align-items: center; justify-content: center;
@@ -305,15 +273,40 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
         .nb-burger.open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
 
         .nb-drawer {
-          position: fixed; top: 64px; left: 0; right: 0; z-index: 999;
-          background: rgba(18, 2, 9, 0.92);
+          position: fixed; top: 64px; right: 0; bottom: 0; z-index: 999;
+          width: min(360px, 100vw);
+          background: rgba(18, 2, 9, 0.95);
           backdrop-filter: blur(24px) saturate(1.8);
           -webkit-backdrop-filter: blur(24px) saturate(1.8);
-          border-bottom: 1px solid rgba(255,255,255,0.1);
-          padding: 1.2rem 1.5rem 1.8rem;
+          border-left: 1px solid rgba(255,255,255,0.1);
+          padding: 1.2rem 1.2rem 1.8rem;
           display: flex; flex-direction: column; gap: 0.25rem;
           max-height: calc(100dvh - 64px);
           overflow-y: auto;
+          box-shadow: -18px 0 40px rgba(0,0,0,0.28);
+        }
+        .nb-drawer-profile {
+          padding: 1rem;
+          border-radius: 18px;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.08);
+          display: grid;
+          gap: 0.35rem;
+          color: #fff;
+        }
+        .nb-drawer-kicker {
+          font-size: 0.72rem;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: rgba(255,255,255,0.55);
+        }
+        .nb-drawer-name {
+          font-size: 1.1rem;
+          font-weight: 600;
+        }
+        .nb-drawer-meta {
+          font-size: 0.84rem;
+          color: rgba(255,255,255,0.68);
         }
         .nb-drawer-link {
           padding: 0.75rem 1rem;
@@ -398,16 +391,13 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
           .nb-brand-badge { width: 34px; height: 44px; }
           .nb-link { padding: 0.35rem 0.65rem; font-size: 0.76rem; }
           .nb-cart { padding: 0.38rem 0.9rem; font-size: 0.76rem; }
-          .nb-auth-chip { max-width: 130px; }
         }
 
         @media (max-width: 768px) {
           .nb-links { display: none; }
-          .nb-burger { display: flex; }
-          .nb-cart, .nb-auth { display: none; }
+          .nb-cart { display: none; }
           .nb-nav { height: 60px; padding: 0 0.85rem; }
-          .nb-drawer { top: 60px; }
-          .nb-drawer { max-height: calc(100dvh - 60px); }
+          .nb-drawer { top: 60px; max-height: calc(100dvh - 60px); width: min(340px, 100vw); }
           .nb-brand { min-width: 0; max-width: calc(100vw - 76px); }
           .nb-brand-badge { width: 31px; height: 40px; }
           .nb-brand-name {
@@ -437,7 +427,7 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
           .nb-brand-badge { width: 28px; height: 36px; }
           .nb-brand-name { font-size: 0.88rem; letter-spacing: -0.02em; }
           .nb-burger { width: 34px; height: 34px; }
-          .nb-drawer { padding: 1rem 0.9rem 1.25rem; }
+          .nb-drawer { padding: 1rem 0.9rem 1.25rem; width: 100vw; }
         }
       `}</style>
 
@@ -476,36 +466,22 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
             </AnimatePresence>
           </Link>
 
-          <div className="nb-auth">
-            {authUser ? (
-              <>
-                <span className="nb-auth-chip">{authUser.name || authUser.email}</span>
-                <button
-                  type="button"
-                  className="nb-auth-button"
-                  onClick={handleLogoutClick}
-                  disabled={loggingOut}
-                >
-                  {loggingOut ? "Logging Out..." : "Logout"}
-                </button>
-              </>
-            ) : (
-              <Link to="/login" className="nb-auth-link">
-                Login
-              </Link>
-            )}
-          </div>
         </div>
 
-        <button
-          className={`nb-burger ${menuOpen ? "open" : ""}`}
-          onClick={() => setMenuOpen((open) => !open)}
-          aria-label="Toggle menu"
-          aria-expanded={menuOpen}
-          aria-controls="mobile-navigation"
-        >
-          <span /><span /><span />
-        </button>
+        <div className="nb-actions">
+          {!menuOpen && (
+            authUser ? null : <Link to="/login" className="nb-auth-link">Login</Link>
+          )}
+          <button
+            className={`nb-burger ${menuOpen ? "open" : ""}`}
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-label="Toggle menu"
+            aria-expanded={menuOpen}
+            aria-controls="mobile-navigation"
+          >
+            <span /><span /><span />
+          </button>
+        </div>
       </nav>
 
       <AnimatePresence>
@@ -562,9 +538,20 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
             <div className="nb-drawer-divider" />
             {authUser ? (
               <>
-                <div className="nb-drawer-link" style={{ cursor: "default" }}>
-                  {authUser.name || authUser.email}
+                <div className="nb-drawer-profile">
+                  <div className="nb-drawer-kicker">My Profile</div>
+                  <div className="nb-drawer-name">{authUser.name || authUser.username || "Account"}</div>
+                  <div className="nb-drawer-meta">{authUser.email || "No email available"}</div>
+                  <div className="nb-drawer-meta">
+                    {authUser.is_superuser ? "Superuser" : hasAdminAccess ? "Staff access" : "Customer account"}
+                  </div>
                 </div>
+                <div className="nb-drawer-divider" />
+                {hasAdminAccess && (
+                  <Link to="/admin" className={`nb-drawer-link ${location.pathname.startsWith("/admin") ? "nb-active" : ""}`}>
+                    Admin Portal
+                  </Link>
+                )}
                 <button
                   type="button"
                   className="nb-drawer-link"

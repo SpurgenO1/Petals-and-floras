@@ -1,5 +1,6 @@
 from rest_framework import serializers
 import re
+from django.conf import settings
 from django.contrib.auth.models import User
 from .models import Feedback, Order, Product
 
@@ -165,6 +166,8 @@ class AuthUserSerializer(serializers.Serializer):
     username = serializers.CharField(read_only=True)
     email = serializers.EmailField(read_only=True)
     name = serializers.CharField(read_only=True)
+    is_staff = serializers.BooleanField(read_only=True)
+    is_superuser = serializers.BooleanField(read_only=True)
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -182,6 +185,11 @@ class RegisterSerializer(serializers.Serializer):
         email = value.strip().lower()
         if User.objects.filter(email__iexact=email).exists():
             raise serializers.ValidationError("An account with this email already exists")
+
+        domain = email.rsplit("@", 1)[-1]
+        if domain in {"localhost", "example.com", "test.com", "invalid"}:
+            raise serializers.ValidationError("Enter a real email address")
+
         return email
 
 

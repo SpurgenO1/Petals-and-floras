@@ -1,6 +1,18 @@
 from django.urls import path
 
 from .views import (
+    admin_create_staff_user,
+    admin_feedback,
+    admin_feedback_detail,
+    admin_groups,
+    admin_order_detail,
+    admin_order_history,
+    admin_orders,
+    admin_product_detail,
+    admin_products,
+    admin_user_detail,
+    admin_users,
+    get_admin_overview,
     create_order,
     create_payment,
     create_feedback,
@@ -12,6 +24,7 @@ from .views import (
     login_user,
     logout_user,
     register_user,
+    verify_email,
 )
 
 urlpatterns = [
@@ -20,10 +33,23 @@ urlpatterns = [
     path("payment/create/", create_payment),
     path("feedback/", get_feedback),
     path("feedback/create/", create_feedback),
+    path("admin/overview/", get_admin_overview),
+    path("admin/products/", admin_products),
+    path("admin/products/<int:product_id>/", admin_product_detail),
+    path("admin/orders/", admin_orders),
+    path("admin/orders/<int:order_id>/", admin_order_detail),
+    path("admin/order-history/", admin_order_history),
+    path("admin/feedback/", admin_feedback),
+    path("admin/feedback/<int:feedback_id>/", admin_feedback_detail),
+    path("admin/users/", admin_users),
+    path("admin/users/<int:user_id>/", admin_user_detail),
+    path("admin/users/create-staff/", admin_create_staff_user),
+    path("admin/groups/", admin_groups),
     path("auth/csrf/", get_csrf_token),
     path("auth/me/", get_current_user),
     path("orders/history/", get_order_history),
     path("auth/register/", register_user),
+    path("auth/verify-email/<uidb64>/<token>/", verify_email),
     path("auth/login/", login_user),
     path("auth/logout/", logout_user),
 ]

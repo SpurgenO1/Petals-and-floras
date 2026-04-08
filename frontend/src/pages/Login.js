@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { getCurrentUser, loginUser, registerUser } from "../services/api";
 
 const initialLoginState = { email: "", password: "" };
-const initialRegisterState = { name: "", email: "", password: "" };
+const initialRegisterState = { name: "", email: "", confirmEmail: "", password: "" };
 
 function extractError(error, fallback) {
   const data = error?.response?.data;
@@ -38,6 +38,7 @@ function extractError(error, fallback) {
 
 export default function Login({ authUser, onAuthSuccess }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [mode, setMode] = useState("login");
   const [loginForm, setLoginForm] = useState(initialLoginState);
   const [registerForm, setRegisterForm] = useState(initialRegisterState);
@@ -49,6 +50,26 @@ export default function Login({ authUser, onAuthSuccess }) {
     () => (mode === "login" ? loginForm : registerForm),
     [loginForm, mode, registerForm]
   );
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const verified = params.get("verified");
+    const email = params.get("email");
+
+    if (verified === "success") {
+      setMode("login");
+      setError("");
+      setMessage(
+        email
+          ? `Email verified for ${email}. You can log in now.`
+          : "Email verified successfully. You can log in now."
+      );
+    } else if (verified === "error") {
+      setMode("login");
+      setMessage("");
+      setError("That verification link is invalid or has expired. Please register again.");
+    }
+  }, [location.search]);
 
   if (authUser) {
     return <Navigate to="/" replace />;
@@ -73,36 +94,50 @@ export default function Login({ authUser, onAuthSuccess }) {
     setMessage("");
 
     try {
+      if (mode === "register") {
+        const normalizedEmail = registerForm.email.trim().toLowerCase();
+        const normalizedConfirmEmail = registerForm.confirmEmail.trim().toLowerCase();
+
+        if (normalizedEmail !== normalizedConfirmEmail) {
+          throw new Error("Email addresses do not match");
+        }
+      }
+
       const authResponse =
         mode === "login"
           ? await loginUser(loginForm)
-          : await registerUser(registerForm);
+          : await registerUser({
+              name: registerForm.name,
+              email: registerForm.email,
+              password: registerForm.password,
+            });
 
-      const authenticatedUser = authResponse.data?.user;
-      if (!authenticatedUser) {
-        throw new Error("Missing authenticated user");
+      if (mode === "register") {
+        setRegisterForm(initialRegisterState);
+        setMode("login");
+        setMessage(authResponse.data?.message || "Account created. Check your email to verify your address.");
+        return;
+      }
+
+      const sessionResponse = await getCurrentUser().catch(() => null);
+      const authenticatedUser = sessionResponse?.data || authResponse.data?.user;
+      if (!sessionResponse?.data) {
+        throw new Error("Login succeeded, but the Django session was not created. Please sign in again.");
       }
 
       onAuthSuccess?.(authenticatedUser);
-      setMessage(authResponse.data?.message || (mode === "login" ? "Logged in successfully" : "Account created successfully"));
+      setMessage(authResponse.data?.message || "Logged in successfully");
       navigate("/", { replace: true });
 
-      window.setTimeout(() => {
-        getCurrentUser()
-          .then((sessionResponse) => {
-            onAuthSuccess?.(sessionResponse.data);
-          })
-          .catch(() => {
-            // Keep the optimistic auth state; checkout/order requests will still
-            // verify the real backend session on demand.
-          });
-      }, 0);
     } catch (requestError) {
+      const isRequestError = Boolean(requestError?.response || requestError?.code);
       setError(
-        extractError(
-          requestError,
-          mode === "login" ? "Unable to login right now." : "Unable to create account right now."
-        )
+        isRequestError
+          ? extractError(
+              requestError,
+              mode === "login" ? "Unable to login right now." : "Unable to create account right now."
+            )
+          : (requestError.message || "Something went wrong.")
       );
     } finally {
       setLoading(false);
@@ -431,6 +466,21 @@ export default function Login({ authUser, onAuthSuccess }) {
                 />
               </div>
 
+              {mode === "register" && (
+                <div className="auth-field">
+                  <label className="auth-label" htmlFor="confirmEmail">Confirm Email Address</label>
+                  <input
+                    id="confirmEmail"
+                    type="email"
+                    className="auth-input"
+                    value={registerForm.confirmEmail}
+                    onChange={(event) => updateField("confirmEmail", event.target.value)}
+                    placeholder="Re-enter your email"
+                    required
+                  />
+                </div>
+              )}
+
               <div className="auth-field">
                 <label className="auth-label" htmlFor="password">Password</label>
                 <input
@@ -449,13 +499,15 @@ export default function Login({ authUser, onAuthSuccess }) {
 
               <button className="auth-submit" type="submit" disabled={loading}>
                 {loading
-                  ? (mode === "login" ? "Signing In..." : "Creating Account...")
+                  ? (mode === "login" ? "Signing In..." : "Sending Verification Email...")
                   : (mode === "login" ? "Login" : "Create Account")}
               </button>
             </form>
 
             <p className="auth-note">
-              This login uses your site backend directly, so you stay inside the Petals & Flora experience.
+              {mode === "login"
+                ? "This login uses your site backend directly, so you stay inside the Petals & Flora experience."
+                : "We will send a verification link to your email before you can log in."}
             </p>
           </div>
         </div>
