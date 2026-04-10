@@ -13,6 +13,7 @@ const Cart = lazy(() => import("./pages/Cart"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const Login = lazy(() => import("./pages/Login"));
 const AdminPortal = lazy(() => import("./pages/AdminPortal"));
+const Orders = lazy(() => import("./pages/Orders"));
 
 function RouteFallback() {
   return <div className="route-loading" aria-hidden="true" />;
@@ -47,6 +48,7 @@ function AppLayout({
               path="/checkout"
               element={<Checkout cart={cart} clearCart={clearCart} authUser={authUser} />}
             />
+            <Route path="/orders" element={<Orders authUser={authUser} />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact authUser={authUser} />} />
             <Route

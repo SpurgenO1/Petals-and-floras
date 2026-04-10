@@ -1,5 +1,11 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
+
+from .delivery import (
+    get_delivery_status_choices,
+    get_slot_choices,
+)
 
 
 class Product(models.Model):
@@ -21,6 +27,18 @@ class Order(models.Model):
         (STATUS_PAID, "Paid"),
         (STATUS_CANCELLED, "Cancelled"),
     ]
+    OCCASION_BIRTHDAY = "birthday"
+    OCCASION_ANNIVERSARY = "anniversary"
+    OCCASION_THANK_YOU = "thank_you"
+    OCCASION_JUST_BECAUSE = "just_because"
+    OCCASION_CHOICES = [
+        (OCCASION_BIRTHDAY, "Birthday"),
+        (OCCASION_ANNIVERSARY, "Anniversary"),
+        (OCCASION_THANK_YOU, "Thank You"),
+        (OCCASION_JUST_BECAUSE, "Just Because"),
+    ]
+    DELIVERY_STATUS_ORDER_PLACED = "order_placed"
+    DELIVERY_STATUS_CHOICES = get_delivery_status_choices()
 
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="orders")
     name = models.CharField(max_length=100)
@@ -34,6 +52,17 @@ class Order(models.Model):
     payment_order_id = models.CharField(max_length=100, blank=True, default="")
     payment_id = models.CharField(max_length=100, blank=True, default="")
     mongo_order_id = models.CharField(max_length=100, blank=True, default="")
+    delivery_date = models.DateField(null=True, blank=True)
+    delivery_slot = models.CharField(max_length=30, blank=True, default="", choices=get_slot_choices())
+    same_day_delivery = models.BooleanField(default=False)
+    gift_message = models.TextField(blank=True, default="")
+    occasion = models.CharField(max_length=30, blank=True, default="", choices=OCCASION_CHOICES)
+    delivery_status = models.CharField(
+        max_length=30,
+        choices=DELIVERY_STATUS_CHOICES,
+        default=DELIVERY_STATUS_ORDER_PLACED,
+    )
+    delivery_status_updated_at = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -65,6 +94,16 @@ class OrderHistory(models.Model):
     payment_order_id = models.CharField(max_length=100, blank=True, default="")
     payment_id = models.CharField(max_length=100, blank=True, default="")
     mongo_order_id = models.CharField(max_length=100, blank=True, default="")
+    delivery_date = models.DateField(null=True, blank=True)
+    delivery_slot = models.CharField(max_length=30, blank=True, default="", choices=get_slot_choices())
+    same_day_delivery = models.BooleanField(default=False)
+    gift_message = models.TextField(blank=True, default="")
+    occasion = models.CharField(max_length=30, blank=True, default="", choices=Order.OCCASION_CHOICES)
+    delivery_status = models.CharField(
+        max_length=30,
+        choices=Order.DELIVERY_STATUS_CHOICES,
+        default=Order.DELIVERY_STATUS_ORDER_PLACED,
+    )
     ordered_at = models.DateTimeField()
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -75,6 +114,20 @@ class OrderHistory(models.Model):
 
     def __str__(self):
         return f"History #{self.id} - {self.customer_name}"
+
+
+class OrderTrackingEvent(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="tracking_events")
+    status = models.CharField(max_length=30, choices=Order.DELIVERY_STATUS_CHOICES)
+    title = models.CharField(max_length=100)
+    description = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self):
+        return f"Tracking #{self.id} - Order #{self.order_id} - {self.status}"
 
 
 class Feedback(models.Model):

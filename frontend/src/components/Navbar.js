@@ -73,6 +73,7 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
     { to: "/about", label: "About" },
     { to: "/contact", label: "Contact" },
   ];
+  const accountLinks = authUser ? [{ to: "/orders", label: "My Orders" }] : [];
 
   const hasAdminAccess = Boolean(authUser?.is_staff || authUser?.is_superuser);
 
@@ -440,7 +441,7 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
         </Link>
 
         <div className="nb-links">
-          {links.map(({ to, label }) => (
+          {[...links, ...accountLinks].map(({ to, label }) => (
             <Link
               key={to}
               to={to}
@@ -528,7 +529,7 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
           >
-            {links.map(({ to, label }) => (
+            {[...links, ...accountLinks].map(({ to, label }) => (
               <Link
                 key={to}
                 to={to}

@@ -4,7 +4,8 @@ from django.contrib.auth.models import User
 from django.db.models import Count, Max, Sum, Value
 from django.db.models.functions import Coalesce
 
-from .models import Feedback, Order, OrderHistory, Product
+from .delivery import get_delivery_status_label, get_slot_label
+from .models import Feedback, Order, OrderHistory, OrderTrackingEvent, Product
 
 admin.site.site_header = "Petals & Floras Administration"
 admin.site.site_title = "Petals & Floras Admin"
@@ -14,7 +15,7 @@ admin.site.index_title = "Users, products, and order history"
 class OrderInline(admin.TabularInline):
     model = Order
     extra = 0
-    fields = ("id", "status", "total_amount", "mongo_order_id", "created_at")
+    fields = ("id", "status", "delivery_status", "total_amount", "mongo_order_id", "created_at")
     readonly_fields = fields
     can_delete = False
     show_change_link = True
@@ -23,10 +24,17 @@ class OrderInline(admin.TabularInline):
 class OrderHistoryInline(admin.TabularInline):
     model = OrderHistory
     extra = 0
-    fields = ("id", "status", "total_amount", "mongo_order_id", "ordered_at")
+    fields = ("id", "status", "delivery_status", "total_amount", "mongo_order_id", "ordered_at")
     readonly_fields = fields
     can_delete = False
     show_change_link = True
+
+
+class OrderTrackingEventInline(admin.TabularInline):
+    model = OrderTrackingEvent
+    extra = 0
+    fields = ("status", "title", "description", "created_at")
+    readonly_fields = ("created_at",)
 
 
 @admin.register(Product)
@@ -44,12 +52,14 @@ class OrderAdmin(admin.ModelAdmin):
         "name",
         "phone",
         "status",
+        "delivery_status_badge",
+        "delivery_slot_badge",
         "total_amount",
         "item_count",
         "mongo_order_id",
         "created_at",
     )
-    list_filter = ("status", "created_at")
+    list_filter = ("status", "delivery_status", "same_day_delivery", "created_at")
     search_fields = (
         "name",
         "phone",
@@ -60,14 +70,23 @@ class OrderAdmin(admin.ModelAdmin):
         "user__username",
         "user__email",
     )
-    readonly_fields = ("created_at", "mongo_order_id")
+    readonly_fields = ("created_at", "mongo_order_id", "delivery_status_updated_at")
     date_hierarchy = "created_at"
     list_select_related = ("user",)
     ordering = ("-created_at",)
+    inlines = [OrderTrackingEventInline]
 
     @admin.display(description="Items")
     def item_count(self, obj):
         return sum(int(item.get("qty", 1)) for item in obj.items if isinstance(item, dict))
+
+    @admin.display(description="Delivery")
+    def delivery_status_badge(self, obj):
+        return get_delivery_status_label(obj.delivery_status) or "-"
+
+    @admin.display(description="Window")
+    def delivery_slot_badge(self, obj):
+        return get_slot_label(obj.delivery_slot) or "-"
 
 
 @admin.register(OrderHistory)
@@ -78,11 +97,12 @@ class OrderHistoryAdmin(admin.ModelAdmin):
         "user",
         "customer_name",
         "status",
+        "delivery_status",
         "total_amount",
         "mongo_order_id",
         "ordered_at",
     )
-    list_filter = ("status", "ordered_at")
+    list_filter = ("status", "delivery_status", "same_day_delivery", "ordered_at")
     search_fields = (
         "customer_name",
         "phone",
@@ -96,6 +116,15 @@ class OrderHistoryAdmin(admin.ModelAdmin):
     readonly_fields = ("ordered_at", "updated_at", "mongo_order_id")
     list_select_related = ("user", "source_order")
     ordering = ("-ordered_at",)
+
+
+@admin.register(OrderTrackingEvent)
+class OrderTrackingEventAdmin(admin.ModelAdmin):
+    list_display = ("id", "order", "status", "title", "created_at")
+    list_filter = ("status", "created_at")
+    search_fields = ("order__id", "title", "description", "order__name")
+    readonly_fields = ("created_at",)
+    ordering = ("-created_at",)
 
 
 @admin.register(Feedback)

@@ -3,7 +3,8 @@ from django.contrib.auth.models import User
 from django.dispatch import receiver
 from pymongo.errors import PyMongoError
 
-from .models import Feedback, Order, OrderHistory, Product
+from .delivery import get_delivery_status_label
+from .models import Feedback, Order, OrderHistory, OrderTrackingEvent, Product
 from .mongo import (
     delete_feedback_from_mongo,
     delete_product_from_mongo,
@@ -28,6 +29,12 @@ def upsert_order_history(order):
         "payment_order_id": order.payment_order_id,
         "payment_id": order.payment_id,
         "mongo_order_id": order.mongo_order_id,
+        "delivery_date": order.delivery_date,
+        "delivery_slot": order.delivery_slot,
+        "same_day_delivery": order.same_day_delivery,
+        "gift_message": order.gift_message,
+        "occasion": order.occasion,
+        "delivery_status": order.delivery_status,
         "ordered_at": order.created_at,
     }
     OrderHistory.objects.update_or_create(
@@ -71,6 +78,13 @@ def sync_user_after_delete(sender, instance, **kwargs):
 @receiver(post_save, sender=Order)
 def sync_order_history_after_save(sender, instance, **kwargs):
     upsert_order_history(instance)
+    if not instance.tracking_events.exists():
+        OrderTrackingEvent.objects.create(
+            order=instance,
+            status=instance.delivery_status,
+            title=get_delivery_status_label(instance.delivery_status) or "Order update",
+            description="Your floral order has been confirmed and queued for our design studio.",
+        )
     try:
         sync_order_history_to_mongo(instance)
     except PyMongoError:
