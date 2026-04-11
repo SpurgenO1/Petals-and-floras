@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Link } from "react-router-dom";
 import { getProducts } from "../services/api";
-import { catalogProducts } from "../data/catalogProducts";
+import { catalogProducts, PRODUCT_SPECIFIC_IMAGES } from "../data/catalogProducts";
 
 const CATEGORY_INTEREST_STORAGE_KEY = "pf_category_interest";
 const MotionLink = motion(Link);
@@ -47,12 +47,23 @@ function buildProductImage(product) {
 }
 
 function normalizeProduct(product) {
+  const category = product.category || "Floral";
+  const name = product.name || "Unknown";
+  
+  // Use high-quality generated images if available
+  // Try category-qualified name first (e.g., "Roses:Tajmahal"), then fall back to plain name
+  let imageUrl = PRODUCT_SPECIFIC_IMAGES[`${category}:${name}`] || 
+                 PRODUCT_SPECIFIC_IMAGES[name] || 
+                 product.professional_image || 
+                 product.image || 
+                 buildProductImage(product);
+  
   return {
     ...product,
     price: Number(product.price || 0),
-    category: product.category || "Floral",
-    description: product.description || `${product.name} from our floral catalog.`,
-    image: buildProductImage(product),
+    category: category,
+    description: product.description || `${name} from our floral catalog.`,
+    image: imageUrl,
     isFromAdmin: Boolean(product.isFromAdmin),
   };
 }
@@ -422,12 +433,12 @@ export default function Products({ cart = [], setCart = () => {} }) {
         .page {
           min-height: 100vh;
           background:
-            radial-gradient(ellipse 80% 60% at 20% 10%, rgba(192,53,78,0.35) 0%, transparent 55%),
-            radial-gradient(ellipse 60% 50% at 80% 85%, rgba(123,26,46,0.45) 0%, transparent 55%),
-            radial-gradient(ellipse 100% 100% at 50% 50%, #1a0510 0%, #0d0007 100%);
+            radial-gradient(ellipse 80% 60% at 20% 10%, rgba(192,53,78,0.25) 0%, transparent 55%),
+            radial-gradient(ellipse 60% 50% at 80% 85%, rgba(123,26,46,0.3) 0%, transparent 55%),
+            radial-gradient(ellipse 100% 100% at 50% 50%, #0f0208 0%, #050002 100%);
           position: relative;
           overflow: hidden;
-          padding: calc(var(--nav-height) + 2rem) 2rem 5rem;
+          padding: calc(var(--nav-height) + 3rem) 2rem 5rem;
         }
 
         .page::before {
@@ -458,11 +469,12 @@ export default function Products({ cart = [], setCart = () => {} }) {
         }
         .header h2 {
           font-family: 'Cormorant Garamond', serif;
-          font-size: clamp(2.4rem, 5vw, 4rem);
+          font-size: clamp(2.8rem, 6vw, 4.5rem);
           font-weight: 700; color: #fff; line-height: 1.1;
-          text-shadow: 0 2px 30px rgba(192,53,78,0.5);
+          letter-spacing: -0.02em;
+          text-shadow: 0 2px 30px rgba(192,53,78,0.4);
         }
-        .header h2 span { color: var(--rose-petal); }
+        .header h2 span { color: var(--rose-petal); font-style: italic; }
         .deco-line {
           display: flex; align-items: center; gap: 1rem; justify-content: center; margin-top: 1.5rem;
         }
