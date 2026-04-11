@@ -107,6 +107,7 @@ def build_user_document(user):
 
 def build_order_history_document(order):
     user = order.user if isinstance(order.user, User) else None
+    delivery_date = order.delivery_date.isoformat() if order.delivery_date else ""
     return {
         "admin_order_id": order.id,
         "mongo_order_id": order.mongo_order_id,
@@ -126,6 +127,14 @@ def build_order_history_document(order):
         "items": order.items,
         "item_count": sum(int(item.get("qty", 1)) for item in order.items if isinstance(item, dict)),
         "status": order.status,
+        "delivery": {
+            "date": delivery_date,
+            "slot": order.delivery_slot,
+            "same_day_delivery": bool(order.same_day_delivery),
+            "gift_message": order.gift_message,
+            "occasion": order.occasion,
+            "tracking_status": order.delivery_status,
+        },
         "total_amount": int(order.total_amount),
         "payment_order_id": order.payment_order_id,
         "payment_id": order.payment_id,

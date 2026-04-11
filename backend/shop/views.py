@@ -1,4 +1,6 @@
 import razorpay
+from collections import Counter
+from datetime import timedelta
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.models import Group, User
@@ -20,8 +22,18 @@ from rest_framework import status
 import re
 
 from .catalog import CATALOG_PRODUCTS
+from .delivery import (
+    MAX_DELIVERY_DAYS_AHEAD,
+    SAME_DAY_CUTOFF_HOUR,
+    build_slot_availability,
+    get_business_now,
+    get_business_today,
+    get_delivery_status_label,
+    get_slot_label,
+    parse_delivery_date,
+)
 from .mongo import get_orders_collection, get_products_collection, sync_product_to_mongo
-from .models import Feedback, Order, OrderHistory, Product
+from .models import Feedback, Order, OrderHistory, OrderTrackingEvent, Product
 from .serializers import (
     AuthUserSerializer,
     FeedbackCreateSerializer,
@@ -37,7 +49,7 @@ from .throttles import AuthLoginRateThrottle, AuthRegisterRateThrottle, AuthUser
 
 
 def validate_order(data):
-    required_fields = ["name", "phone", "address"]
+    required_fields = ["name", "phone", "address", "delivery_date", "delivery_slot"]
     for field in required_fields:
         value = str(data.get(field, "")).strip()
         if not value or len(value) == 0:
@@ -83,6 +95,80 @@ def sanitize_string(value, max_length=500):
     # Remove potentially dangerous characters but allow common text
     sanitized = re.sub(r'[<>"\']', '', value.strip())
     return sanitized[:max_length]
+
+
+def get_delivery_slot_counts(delivery_date):
+    rows = (
+        Order.objects.filter(delivery_date=delivery_date)
+        .exclude(status=Order.STATUS_CANCELLED)
+        .values_list("delivery_slot", flat=True)
+    )
+    return Counter(slot for slot in rows if slot)
+
+
+def validate_delivery_request(delivery_date, delivery_slot, request_same_day=False, now=None):
+    current_time = now or get_business_now()
+    if delivery_date is None:
+        return "Select a valid delivery date."
+
+    today = current_time.date()
+    if delivery_date < today:
+        return "Past delivery dates are unavailable."
+
+    if delivery_date > today + timedelta(days=MAX_DELIVERY_DAYS_AHEAD):
+        return "Choose a delivery date within the next 21 days."
+
+    available_slots = build_slot_availability(
+        delivery_date,
+        slot_counts=get_delivery_slot_counts(delivery_date),
+        now=current_time,
+    )
+    slot_map = {slot["code"]: slot for slot in available_slots}
+    selected_slot = slot_map.get(delivery_slot)
+    if not selected_slot:
+        return "Select an available delivery time slot."
+
+    if not selected_slot["available"]:
+        return selected_slot["reason"] or "This delivery slot is unavailable."
+
+    if request_same_day and delivery_date != today:
+        return "Same-day delivery can only be selected for today's date."
+
+    return None
+
+
+def build_tracking_description(status_code, order):
+    slot_label = get_slot_label(order.delivery_slot) or "your selected window"
+    occasion_label = dict(Order.OCCASION_CHOICES).get(order.occasion, "")
+
+    descriptions = {
+        Order.DELIVERY_STATUS_ORDER_PLACED: (
+            f"We've reserved {slot_label} on {order.delivery_date} for your flowers."
+        ),
+        "preparing_bouquet": (
+            f"Our florists are hand-tying your arrangement{f' for the {occasion_label.lower()}' if occasion_label else ''}."
+        ),
+        "out_for_delivery": "Your bouquet is on the road and getting its final careful handling.",
+        "delivered": "Delivered with care. We hope the moment feels every bit as special as the flowers.",
+    }
+    return descriptions.get(status_code, "")
+
+
+def append_tracking_event(order, status_code, description=""):
+    latest_event = order.tracking_events.order_by("-created_at", "-id").first()
+    if latest_event and latest_event.status == status_code:
+        if description and latest_event.description != description:
+            latest_event.description = description
+            latest_event.title = get_delivery_status_label(status_code) or latest_event.title
+            latest_event.save(update_fields=["title", "description"])
+        return latest_event
+
+    return OrderTrackingEvent.objects.create(
+        order=order,
+        status=status_code,
+        title=get_delivery_status_label(status_code) or "Order update",
+        description=description,
+    )
 
 
 def serialize_auth_user(user):
@@ -208,6 +294,25 @@ def serialize_order(order):
         "payment_order_id": order.payment_order_id,
         "payment_id": order.payment_id,
         "mongo_order_id": order.mongo_order_id,
+        "delivery_date": order.delivery_date,
+        "delivery_slot": order.delivery_slot,
+        "delivery_slot_label": get_slot_label(order.delivery_slot),
+        "same_day_delivery": order.same_day_delivery,
+        "gift_message": order.gift_message,
+        "occasion": order.occasion,
+        "delivery_status": order.delivery_status,
+        "delivery_status_label": get_delivery_status_label(order.delivery_status),
+        "delivery_status_updated_at": order.delivery_status_updated_at,
+        "tracking_events": [
+            {
+                "status": event.status,
+                "label": get_delivery_status_label(event.status),
+                "title": event.title,
+                "description": event.description,
+                "created_at": event.created_at,
+            }
+            for event in order.tracking_events.all()
+        ],
         "created_at": order.created_at,
         "user_id": order.user_id,
         "user_email": order.user.email if order.user else "",
@@ -228,6 +333,14 @@ def serialize_order_history(entry):
         "payment_order_id": entry.payment_order_id,
         "payment_id": entry.payment_id,
         "mongo_order_id": entry.mongo_order_id,
+        "delivery_date": entry.delivery_date,
+        "delivery_slot": entry.delivery_slot,
+        "delivery_slot_label": get_slot_label(entry.delivery_slot),
+        "same_day_delivery": entry.same_day_delivery,
+        "gift_message": entry.gift_message,
+        "occasion": entry.occasion,
+        "delivery_status": entry.delivery_status,
+        "delivery_status_label": get_delivery_status_label(entry.delivery_status),
         "ordered_at": entry.ordered_at,
         "updated_at": entry.updated_at,
         "user_id": entry.user_id,
@@ -316,6 +429,15 @@ def build_mongo_order(payload, order_obj):
         "items": normalize_items(payload["items"]),
         "total_amount": payload["total_amount"],
         "order_status": payload["status"],
+        "delivery": {
+            "date": payload["delivery_date"].isoformat() if payload.get("delivery_date") else "",
+            "slot": payload["delivery_slot"],
+            "slot_label": get_slot_label(payload["delivery_slot"]),
+            "same_day_delivery": bool(payload.get("same_day_delivery")),
+            "gift_message": sanitize_string(payload.get("gift_message", ""), 300),
+            "occasion": sanitize_string(payload.get("occasion", ""), 30),
+            "tracking_status": payload.get("delivery_status", Order.DELIVERY_STATUS_ORDER_PLACED),
+        },
         "payment": {
             "method": payment_method,
             "status": payment_status,
@@ -431,9 +553,33 @@ def get_order_history(request):
     if user is None:
         return Response({"error": "Not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
 
-    orders = Order.objects.filter(user=user).order_by("-created_at")
+    orders = Order.objects.filter(user=user).prefetch_related("tracking_events").order_by("-created_at")
     serializer = OrderHistorySerializer(orders, many=True)
     return Response(serializer.data)
+
+
+@api_view(["GET"])
+@throttle_classes([OrderRateThrottle])
+def get_delivery_options(request):
+    requested_date = parse_delivery_date(request.query_params.get("date"))
+    current_time = get_business_now()
+    delivery_date = requested_date or current_time.date()
+    slots = build_slot_availability(
+        delivery_date,
+        slot_counts=get_delivery_slot_counts(delivery_date),
+        now=current_time,
+    )
+    return Response(
+        {
+            "today": get_business_today(),
+            "selected_date": delivery_date,
+            "same_day_available": delivery_date == current_time.date() and current_time.hour < SAME_DAY_CUTOFF_HOUR,
+            "same_day_cutoff_hour": SAME_DAY_CUTOFF_HOUR,
+            "slots": slots,
+            "max_delivery_days_ahead": MAX_DELIVERY_DAYS_AHEAD,
+            "timezone": "Asia/Kolkata",
+        }
+    )
 
 
 @api_view(["GET"])
@@ -594,7 +740,7 @@ def admin_orders(request):
     if denied_response is not None:
         return denied_response
 
-    orders = Order.objects.select_related("user").order_by("-created_at")[:200]
+    orders = Order.objects.select_related("user").prefetch_related("tracking_events").order_by("-created_at")[:200]
     return Response({"results": [serialize_order(order) for order in orders]})
 
 
@@ -605,7 +751,7 @@ def admin_order_detail(request, order_id):
     if denied_response is not None:
         return denied_response
 
-    order = Order.objects.select_related("user").filter(pk=order_id).first()
+    order = Order.objects.select_related("user").prefetch_related("tracking_events").filter(pk=order_id).first()
     if order is None:
         return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -614,9 +760,29 @@ def admin_order_detail(request, order_id):
     if next_status and next_status not in valid_statuses:
         return Response({"error": "Invalid order status"}, status=status.HTTP_400_BAD_REQUEST)
 
+    next_delivery_status = str(request.data.get("delivery_status", "")).strip()
+    valid_delivery_statuses = {choice[0] for choice in Order.DELIVERY_STATUS_CHOICES}
+    if next_delivery_status and next_delivery_status not in valid_delivery_statuses:
+        return Response({"error": "Invalid delivery status"}, status=status.HTTP_400_BAD_REQUEST)
+
     if next_status:
         order.status = next_status
-        order.save(update_fields=["status"])
+    if next_delivery_status:
+        order.delivery_status = next_delivery_status
+        order.delivery_status_updated_at = timezone.now()
+    if next_status or next_delivery_status:
+        update_fields = ["status"] if next_status else []
+        if next_delivery_status:
+            update_fields.extend(["delivery_status", "delivery_status_updated_at"])
+        order.save(update_fields=update_fields)
+        if next_delivery_status:
+            append_tracking_event(
+                order,
+                next_delivery_status,
+                description=build_tracking_description(next_delivery_status, order),
+            )
+            if hasattr(order, "_prefetched_objects_cache"):
+                order._prefetched_objects_cache.pop("tracking_events", None)
 
     return Response({"message": "Order updated", "order": serialize_order(order)})
 
@@ -964,10 +1130,25 @@ def create_order(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     payload = serializer.validated_data
+    delivery_date = payload.get("delivery_date")
+    delivery_slot = payload.get("delivery_slot", "")
+    same_day_delivery = bool(payload.get("same_day_delivery"))
+    delivery_error = validate_delivery_request(
+        delivery_date,
+        delivery_slot,
+        request_same_day=same_day_delivery,
+    )
+    if delivery_error:
+        return Response({"error": delivery_error}, status=status.HTTP_400_BAD_REQUEST)
+
     payload["status"] = payload.get("status", Order.STATUS_PENDING)
     payload["total_amount"] = calculate_total(payload.get("items", []))
     payload["payment_method"] = payload.get("payment_method", "COD").upper()
     payload["payment_status"] = payload.get("payment_status", "UNPAID").upper()
+    payload["delivery_status"] = Order.DELIVERY_STATUS_ORDER_PLACED
+    payload["gift_message"] = payload.get("gift_message", "").strip()
+    payload["occasion"] = payload.get("occasion", "").strip()
+    payload["same_day_delivery"] = same_day_delivery or delivery_date == get_business_today()
 
     if payload.get("payment_id"):
         payload["status"] = Order.STATUS_PAID
@@ -987,9 +1168,21 @@ def create_order(request):
             total_amount=payload["total_amount"],
             payment_order_id=sanitize_string(payload.get("payment_order_id", ""), 100),
             payment_id=sanitize_string(payload.get("payment_id", ""), 100),
+            delivery_date=payload["delivery_date"],
+            delivery_slot=payload["delivery_slot"],
+            same_day_delivery=payload["same_day_delivery"],
+            gift_message=sanitize_string(payload.get("gift_message", ""), 300),
+            occasion=sanitize_string(payload.get("occasion", ""), 30),
+            delivery_status=payload["delivery_status"],
         )
     except Exception as e:
         return Response({"error": "Order creation failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    append_tracking_event(
+        order_obj,
+        order_obj.delivery_status,
+        description=build_tracking_description(order_obj.delivery_status, order_obj),
+    )
 
     mongo_order = build_mongo_order(payload, order_obj)
     mongo_order_id = None
@@ -1010,6 +1203,11 @@ def create_order(request):
             "order_id": mongo_order_id,
             "admin_order_id": order_obj.id,
             "status": order_obj.status,
+            "delivery_status": order_obj.delivery_status,
+            "delivery_status_label": get_delivery_status_label(order_obj.delivery_status),
+            "delivery_date": order_obj.delivery_date,
+            "delivery_slot": order_obj.delivery_slot,
+            "delivery_slot_label": get_slot_label(order_obj.delivery_slot),
             "payment_method": mongo_order["payment"]["method"],
             "payment_status": mongo_order["payment"]["status"],
             "warning": mongo_sync_warning,

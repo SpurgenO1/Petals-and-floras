@@ -2,6 +2,7 @@ from rest_framework import serializers
 import re
 from django.conf import settings
 from django.contrib.auth.models import User
+from .delivery import get_delivery_status_label, get_slot_choices, get_slot_label
 from .models import Feedback, Order, Product
 
 
@@ -39,6 +40,11 @@ class OrderSerializer(serializers.Serializer):
     payment_status = serializers.CharField(required=False, default="UNPAID", max_length=20)
     payment_order_id = serializers.CharField(required=False, allow_blank=True, max_length=100)
     payment_id = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    delivery_date = serializers.DateField()
+    delivery_slot = serializers.ChoiceField(choices=[choice[0] for choice in get_slot_choices()], write_only=False)
+    same_day_delivery = serializers.BooleanField(required=False, default=False)
+    gift_message = serializers.CharField(required=False, allow_blank=True, max_length=300)
+    occasion = serializers.ChoiceField(required=False, allow_blank=True, choices=[choice[0] for choice in Order.OCCASION_CHOICES])
 
     def validate_name(self, value):
         if not value.strip() or len(value) < 2:
@@ -71,9 +77,18 @@ class OrderSerializer(serializers.Serializer):
             raise serializers.ValidationError("Too many items in order")
         return value
 
+    def validate_gift_message(self, value):
+        value = value.strip()
+        if len(value) > 300:
+            raise serializers.ValidationError("Gift message is too long")
+        return value
+
 
 class OrderHistorySerializer(serializers.ModelSerializer):
     item_count = serializers.SerializerMethodField()
+    tracking_events = serializers.SerializerMethodField()
+    delivery_slot_label = serializers.SerializerMethodField()
+    delivery_status_label = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -91,10 +106,41 @@ class OrderHistorySerializer(serializers.ModelSerializer):
             "created_at",
             "items",
             "item_count",
+            "delivery_date",
+            "delivery_slot",
+            "delivery_slot_label",
+            "same_day_delivery",
+            "gift_message",
+            "occasion",
+            "delivery_status",
+            "delivery_status_label",
+            "delivery_status_updated_at",
+            "tracking_events",
         )
 
     def get_item_count(self, obj):
         return sum(int(item.get("qty", 1)) for item in obj.items if isinstance(item, dict))
+
+    def get_tracking_events(self, obj):
+        events = getattr(obj, "tracking_events", None)
+        if hasattr(events, "all"):
+            return [
+                {
+                    "status": event.status,
+                    "label": get_delivery_status_label(event.status) or event.title,
+                    "title": event.title,
+                    "description": event.description,
+                    "created_at": event.created_at,
+                }
+                for event in events.all()
+            ]
+        return []
+
+    def get_delivery_slot_label(self, obj):
+        return get_slot_label(obj.delivery_slot)
+
+    def get_delivery_status_label(self, obj):
+        return get_delivery_status_label(obj.delivery_status)
 
 
 class FeedbackCreateSerializer(serializers.Serializer):

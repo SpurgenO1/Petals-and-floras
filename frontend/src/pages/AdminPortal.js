@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
-import { motion, useSpring, useTransform, useMotionValue } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   createAdminProduct,
   createAdminStaffUser,
@@ -33,6 +33,12 @@ const tabs = [
 ];
 
 const orderStatuses = ["Pending", "Paid", "Cancelled"];
+const deliveryStatuses = [
+  ["order_placed", "Order Placed"],
+  ["preparing_bouquet", "Preparing Bouquet"],
+  ["out_for_delivery", "Out for Delivery"],
+  ["delivered", "Delivered"],
+];
 const feedbackStatuses = ["pending", "reviewed", "hidden"];
 
 const emptyProduct = { name: "", price: "", category: "", description: "" };
@@ -371,10 +377,10 @@ export default function AdminPortal({ authUser }) {
     }
   };
 
-  const changeOrderStatus = async (orderId, status) => {
+  const changeOrderStatus = async (orderId, payload) => {
     setSaving(`order-${orderId}`);
     try {
-      const response = await updateAdminOrder(orderId, { status });
+      const response = await updateAdminOrder(orderId, payload);
       setOrders((current) => current.map((item) => (item.id === orderId ? response.data.order : item)));
       setNotice(`Order #${orderId} updated.`);
     } catch (requestError) {
@@ -783,16 +789,21 @@ export default function AdminPortal({ authUser }) {
 
               {!loading && tab === "orders" ? (
                 <div className="card">
-                  <div className="section"><h2>Manage Orders</h2><p>Review current orders and update their status.</p></div>
+                  <div className="section"><h2>Manage Orders</h2><p>Review payment state, scheduled delivery windows, and bouquet tracking progress.</p></div>
                   <div className="tableWrap">
-                    <table className="table"><thead><tr><th>Order</th><th>Customer</th><th>Contact</th><th>Total</th><th>Items</th><th>Status</th><th>Created</th></tr></thead><tbody>
+                    <table className="table"><thead><tr><th>Order</th><th>Customer</th><th>Delivery</th><th>Total</th><th>Items</th><th>Payment</th><th>Tracking</th><th>Created</th></tr></thead><tbody>
                       {orders.map((order) => (
                         <tr key={order.id}>
                           <td className="stack"><strong>#{order.id}</strong><span className="muted">{order.user_email || "Guest checkout"}</span></td>
                           <td className="stack"><strong>{order.customer_name}</strong><span className="muted">{order.address}</span></td>
-                          <td className="stack"><span>{order.phone}</span><span className="muted">{order.city} {order.pincode}</span></td>
+                          <td className="stack">
+                            <span>{order.delivery_date || "Date pending"}</span>
+                            <span className="muted">{order.delivery_slot_label || order.delivery_slot || "Slot pending"}</span>
+                            <span className="muted">{order.phone} {order.city} {order.pincode}</span>
+                          </td>
                           <td>{fmtMoney(order.total_amount)}</td><td>{Array.isArray(order.items) ? order.items.length : 0}</td>
-                          <td><select value={order.status} onChange={(e) => changeOrderStatus(order.id, e.target.value)} disabled={saving === `order-${order.id}`}>{orderStatuses.map((statusValue) => <option key={statusValue} value={statusValue}>{statusValue}</option>)}</select></td>
+                          <td><select value={order.status} onChange={(e) => changeOrderStatus(order.id, { status: e.target.value })} disabled={saving === `order-${order.id}`}>{orderStatuses.map((statusValue) => <option key={statusValue} value={statusValue}>{statusValue}</option>)}</select></td>
+                          <td><select value={order.delivery_status} onChange={(e) => changeOrderStatus(order.id, { delivery_status: e.target.value })} disabled={saving === `order-${order.id}`}>{deliveryStatuses.map(([statusValue, label]) => <option key={statusValue} value={statusValue}>{label}</option>)}</select></td>
                           <td>{fmtDate(order.created_at)}</td>
                         </tr>
                       ))}
@@ -805,12 +816,14 @@ export default function AdminPortal({ authUser }) {
                 <div className="card">
                   <div className="section"><h2>Order History</h2><p>Read-only history list of recorded order snapshots.</p></div>
                   <div className="tableWrap">
-                    <table className="table"><thead><tr><th>History ID</th><th>Order</th><th>Customer</th><th>Status</th><th>Total</th><th>Ordered</th><th>Updated</th></tr></thead><tbody>
+                    <table className="table"><thead><tr><th>History ID</th><th>Order</th><th>Customer</th><th>Payment</th><th>Delivery</th><th>Total</th><th>Ordered</th><th>Updated</th></tr></thead><tbody>
                       {historyEntries.map((entry) => (
                         <tr key={entry.id}>
                           <td>#{entry.id}</td><td>{entry.source_order_id ? `#${entry.source_order_id}` : "-"}</td>
                           <td className="stack"><strong>{entry.customer_name}</strong><span className="muted">{entry.user_email || "No linked account"}</span></td>
-                          <td><span className="pill">{entry.status}</span></td><td>{fmtMoney(entry.total_amount)}</td><td>{fmtDate(entry.ordered_at)}</td><td>{fmtDate(entry.updated_at)}</td>
+                          <td><span className="pill">{entry.status}</span></td>
+                          <td className="stack"><span className="pill">{entry.delivery_status_label || entry.delivery_status}</span><span className="muted">{entry.delivery_date || "-"} | {entry.delivery_slot_label || entry.delivery_slot || "-"}</span></td>
+                          <td>{fmtMoney(entry.total_amount)}</td><td>{fmtDate(entry.ordered_at)}</td><td>{fmtDate(entry.updated_at)}</td>
                         </tr>
                       ))}
                     </tbody></table>

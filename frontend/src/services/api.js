@@ -240,11 +240,17 @@ export const createPaymentOrder = (amountInPaise) => {
   }
 };
 
+export const getDeliveryOptions = (date) => {
+  const search = date ? `?date=${encodeURIComponent(date)}` : "";
+  return requestWithFallback({ method: "get", url: `delivery/options/${search}` });
+};
+
 export const setRuntimeAuthUser = (user) => {
   runtimeAuthUser = user && typeof user === "object" ? user : null;
 };
 
 export const getCurrentUser = () => requestWithFallback({ method: "get", url: "auth/me/" });
+export const getOrderHistory = () => requestWithFallback({ method: "get", url: "orders/history/" });
 export const getAdminOverview = () => requestWithFallback({ method: "get", url: "admin/overview/" });
 export const getAdminProducts = () => requestWithFallback({ method: "get", url: "admin/products/" });
 export const createAdminProduct = (payload) => requestWithFallback({ method: "post", url: "admin/products/", data: payload });

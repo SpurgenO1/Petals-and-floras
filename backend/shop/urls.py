@@ -16,6 +16,7 @@ from .views import (
     create_order,
     create_payment,
     create_feedback,
+    get_delivery_options,
     get_csrf_token,
     get_current_user,
     get_feedback,
@@ -30,6 +31,7 @@ from .views import (
 urlpatterns = [
     path("products/", get_products),
     path("order/", create_order),
+    path("delivery/options/", get_delivery_options),
     path("payment/create/", create_payment),
     path("feedback/", get_feedback),
     path("feedback/create/", create_feedback),
