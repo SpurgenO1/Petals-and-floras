@@ -1,6 +1,14 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import FrameAnimation from "../components/FrameAnimation";
+import { getFeedback } from "../services/api";
+import buggatiRose from "../assets/flowers/buggati_rose.png";
+import tajmahalRose from "../assets/flowers/tajmahal_rose.png";
+import emmaRose from "../assets/flowers/emma_rose.png";
+import purpleRose from "../assets/flowers/purple_rose.png";
+import goldStrikeRose from "../assets/flowers/gold_strike_rose.png";
+import hydrangea from "../assets/flowers/Hydrangea.png";
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
@@ -11,7 +19,38 @@ const staggerContainer = {
   visible: { transition: { staggerChildren: 0.2 } }
 };
 
+const galleryItems = [
+  { name: "Buggati Rose", image: buggatiRose },
+  { name: "Tajmahal Rose", image: tajmahalRose },
+  { name: "Emma Rose", image: emmaRose },
+  { name: "Purple Rose", image: purpleRose },
+  { name: "Gold Strike Rose", image: goldStrikeRose },
+  { name: "Hydrangea", image: hydrangea }
+];
+
 function Home() {
+  const [recentFeedback, setRecentFeedback] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    getFeedback()
+      .then((response) => {
+        if (mounted) {
+          setRecentFeedback(Array.isArray(response.data) ? response.data.slice(0, 6) : []);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setRecentFeedback([]);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="home-overhaul">
       <FrameAnimation />
@@ -101,14 +140,7 @@ function Home() {
           <p>Take a look at some of our favorite arrangements.</p>
         </div>
         <div className="gallery-grid">
-          {[
-            "Red rose bouquet in white box",
-            "Pink roses with baby's breath",
-            "Red carnations bouquet",
-            "Mixed floral basket",
-            "Multi-color bouquet",
-            "Blue background collection"
-          ].map((item, i) => (
+          {galleryItems.map((item, i) => (
             <motion.div
               key={i}
               className="gallery-item"
@@ -117,12 +149,79 @@ function Home() {
               transition={{ delay: i * 0.1 }}
               viewport={{ once: true }}
             >
-              <div style={{ width: "100%", height: "100%", background: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", fontStyle: "italic", color: "#999", padding: "1rem", textAlign: "center" }}>
-                {item}
+              <div className="gallery-image-shell">
+                <img src={item.image} alt={item.name} loading="lazy" />
               </div>
+              <p className="gallery-caption">{item.name}</p>
             </motion.div>
           ))}
         </div>
+      </section>
+
+      <section
+        className="section-padding"
+        style={{
+          paddingTop: "2.5rem",
+          background:
+            "linear-gradient(180deg, rgba(214, 74, 110, 0.05) 0%, rgba(255,255,255,0.95) 100%)",
+        }}
+      >
+        <motion.div
+          className="section-title"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={fadeInUp}
+        >
+          <h2>What Our Customers Say</h2>
+          <p>Real feedback from people who ordered from Petals and Flora.</p>
+        </motion.div>
+
+        {recentFeedback.length === 0 ? (
+          <motion.div
+            className="premium-card text-center"
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h3 style={{ marginBottom: "0.75rem" }}>No feedback yet</h3>
+            <p>Be the first to share your experience with our flowers, service, and delivery.</p>
+          </motion.div>
+        ) : (
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+              alignItems: "stretch",
+            }}
+          >
+            {recentFeedback.map((entry, index) => (
+              <motion.div
+                key={entry.id}
+                className="premium-card"
+                initial={{ opacity: 0, y: 28 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.45, delay: index * 0.08 }}
+                viewport={{ once: true }}
+                style={{ height: "100%" }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", marginBottom: "0.75rem" }}>
+                  <div>
+                    <p style={{ fontWeight: 700, marginBottom: "0.25rem" }}>{entry.user_name}</p>
+                    <p style={{ opacity: 0.6, fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      {entry.target_type === "flower" && entry.product_name ? `Flower - ${entry.product_name}` : "Shop"}
+                    </p>
+                  </div>
+                  <div style={{ color: "#d64a6e", fontWeight: 700, whiteSpace: "nowrap" }}>
+                    {"★".repeat(Number(entry.rating || 0))}
+                  </div>
+                </div>
+                <h3 style={{ marginBottom: "0.65rem", color: "#d64a6e" }}>{entry.title}</h3>
+                <p style={{ opacity: 0.8, lineHeight: 1.7 }}>{entry.message}</p>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section id="contact" className="section-padding" style={{ background: "#1a1a1e", color: "#fff" }}>
@@ -140,7 +239,7 @@ function Home() {
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               <p>📍 No.27, VOC Street, West Tambaram, Chennai</p>
               <p>📞 +91 80558 95353</p>
-              <p>📧 sales@petalsandfloras.com</p>
+              <p>✉️ sales@petalsandfloras.com</p>
             </div>
           </motion.div>
           <motion.div

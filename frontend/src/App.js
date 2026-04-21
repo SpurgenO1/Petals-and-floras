@@ -19,6 +19,16 @@ function RouteFallback() {
   return <div className="route-loading" aria-hidden="true" />;
 }
 
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [pathname]);
+
+  return null;
+}
+
 function AppLayout({
   authUser,
   cart,
@@ -35,6 +45,7 @@ function AppLayout({
 
   return (
     <>
+      <ScrollToTop />
       <Navbar cartCount={cartCount} authUser={authUser} onLogout={handleLogout} />
       <main className={`app-content ${isHomePage ? "app-content-home" : "app-content-inner"}`}>
         <Suspense fallback={<RouteFallback />}>

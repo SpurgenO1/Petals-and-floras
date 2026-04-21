@@ -575,22 +575,37 @@ a {
 }
 
 .gallery-item {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.gallery-image-shell {
   position: relative;
   border-radius: 16px;
   overflow: hidden;
   height: 300px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(255,244,247,0.92) 100%);
   box-shadow: 0 14px 36px rgba(129, 42, 73, 0.1);
 }
 
-.gallery-item img {
+.gallery-image-shell img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  background: #f8f5f6;
   transition: var(--transition);
 }
 
-.gallery-item:hover img {
+.gallery-item:hover .gallery-image-shell img {
   transform: scale(1.1);
+}
+
+.gallery-caption {
+  margin: 0;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #7b1a2e;
 }
 
 /* Utils */

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { createFeedback, getFeedback } from "../services/api";
+import { createFeedback } from "../services/api";
 
 function FloatingPetal({ style }) {
   return (
@@ -53,6 +53,16 @@ function TiltCard({ children, className = "" }) {
 }
 
 function InfoCard({ icon, label, value, href, delay }) {
+  const content = (
+    <div className="cn-info-card">
+      <div className="cn-info-icon">{icon}</div>
+      <div className="cn-info-body">
+        <p className="cn-info-label">{label}</p>
+        <p className="cn-info-value">{value}</p>
+      </div>
+    </div>
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 28 }}
@@ -61,19 +71,18 @@ function InfoCard({ icon, label, value, href, delay }) {
       transition={{ duration: 0.5, delay }}
     >
       <TiltCard>
-        <div className="cn-info-card">
-          <div className="cn-info-icon">{icon}</div>
-          <div className="cn-info-body">
-            <p className="cn-info-label">{label}</p>
-            {href ? (
-              <a href={href} className="cn-info-value cn-info-link">
-                {value}
-              </a>
-            ) : (
-              <p className="cn-info-value">{value}</p>
-            )}
-          </div>
-        </div>
+        {href ? (
+          <a
+            href={href}
+            className="cn-info-card-link"
+            target={href.startsWith("http") ? "_blank" : undefined}
+            rel={href.startsWith("http") ? "noreferrer" : undefined}
+          >
+            {content}
+          </a>
+        ) : (
+          content
+        )}
       </TiltCard>
     </motion.div>
   );
@@ -120,7 +129,6 @@ const initialForm = {
 
 export default function Contact({ authUser = null }) {
   const [form, setForm] = useState(initialForm);
-  const [recentFeedback, setRecentFeedback] = useState([]);
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -138,27 +146,8 @@ export default function Contact({ authUser = null }) {
     { icon: "Mail", label: "Email", value: "petalsandflora@gmail.com", href: "mailto:petalsandflora@gmail.com", delay: 0.1 },
     { icon: "City", label: "City", value: "Chennai, Tamil Nadu", href: null, delay: 0.2 },
     { icon: "Chat", label: "WhatsApp", value: "Chat with us instantly", href: "https://wa.me/918055895353", delay: 0.3 },
+    { icon: "Insta", label: "Instagram", value: "@petalsandflora2725", href: "https://www.instagram.com/petalsandflora2725?igsh=a292dGx0bHBmZ3U5", delay: 0.4 },
   ];
-
-  useEffect(() => {
-    let mounted = true;
-
-    getFeedback()
-      .then((response) => {
-        if (mounted) {
-          setRecentFeedback(Array.isArray(response.data) ? response.data.slice(0, 6) : []);
-        }
-      })
-      .catch(() => {
-        if (mounted) {
-          setRecentFeedback([]);
-        }
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   function handleChange(event) {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
@@ -180,17 +169,13 @@ export default function Contact({ authUser = null }) {
     setLoading(true);
 
     try {
-      const response = await createFeedback({
+      await createFeedback({
         target_type: "shop",
         product_id: null,
         rating: Number(form.rating),
         title: form.title,
         message: form.message,
       });
-
-      if (response.data?.feedback) {
-        setRecentFeedback((current) => [response.data.feedback, ...current].slice(0, 6));
-      }
 
       setSent(true);
       setForm(initialForm);
@@ -296,10 +281,10 @@ export default function Contact({ authUser = null }) {
           background: linear-gradient(90deg, transparent, var(--rose-mid));
         }
         .cn-deco::after { background: linear-gradient(90deg, var(--rose-mid), transparent); }
-        .cn-cards-wrap { position: relative; z-index: 10; max-width: 900px; margin: 0 auto 2.5rem; }
+        .cn-cards-wrap { position: relative; z-index: 10; max-width: 1140px; margin: 0 auto 2.5rem; }
         .cn-cards-grid {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(5, minmax(0, 1fr));
           gap: 1rem;
         }
         .cn-info-card {
@@ -310,6 +295,21 @@ export default function Contact({ authUser = null }) {
           text-align: center;
           gap: 0.8rem;
           transform: translateZ(20px);
+        }
+        .cn-info-card-link {
+          display: block;
+          text-decoration: none;
+          border-radius: 22px;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .cn-info-card-link:hover {
+          transform: translateY(-2px);
+        }
+        .cn-info-card-link:hover .cn-info-value,
+        .cn-info-card-link:hover .cn-info-label,
+        .cn-info-card-link:hover .cn-info-icon {
+          color: #fff;
+          text-shadow: 0 0 18px rgba(232,83,109,0.28);
         }
         .cn-info-body {
           width: 100%;
@@ -349,15 +349,6 @@ export default function Contact({ authUser = null }) {
           line-height: 1.5;
           text-wrap: balance;
           overflow-wrap: anywhere;
-        }
-        .cn-info-link {
-          text-decoration: none;
-          color: #f6ced8;
-          transition: color 0.2s, text-shadow 0.2s;
-        }
-        .cn-info-link:hover {
-          color: #fff;
-          text-shadow: 0 0 18px rgba(232,83,109,0.28);
         }
         .cn-layout {
           position: relative;
@@ -626,37 +617,8 @@ export default function Contact({ authUser = null }) {
           font-weight: 300;
         }
         .cn-address strong { color: var(--rose-light); font-weight: 400; }
-        .cn-recent-wrap { position: relative; z-index: 10; max-width: 1100px; margin: 2.5rem auto 0; }
-        .cn-feedback-grid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 1rem;
-        }
-        .cn-feedback-card { padding: 1.2rem; height: 100%; }
-        .cn-feedback-head {
-          display: flex;
-          justify-content: space-between;
-          gap: 0.8rem;
-          margin-bottom: 0.6rem;
-          align-items: flex-start;
-        }
-        .cn-feedback-name { color: #fff; font-weight: 600; font-size: 0.95rem; }
-        .cn-feedback-meta {
-          color: rgba(255,255,255,0.45);
-          font-size: 0.75rem;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-        }
-        .cn-feedback-title {
-          color: var(--rose-light);
-          font-size: 0.95rem;
-          margin-bottom: 0.4rem;
-          font-weight: 600;
-        }
-        .cn-feedback-message { color: rgba(255,255,255,0.7); font-size: 0.88rem; line-height: 1.6; }
-        .cn-feedback-stars { color: #ffd166; letter-spacing: 0.08em; font-size: 0.86rem; white-space: nowrap; }
-        @media (max-width: 900px) {
-          .cn-feedback-grid { grid-template-columns: 1fr 1fr; }
+        @media (max-width: 1080px) {
+          .cn-cards-grid { grid-template-columns: repeat(3, 1fr); }
         }
         @media (max-width: 860px) {
           .cn-cards-grid { grid-template-columns: repeat(2, 1fr); }
@@ -674,7 +636,6 @@ export default function Contact({ authUser = null }) {
           .cn-helper { font-size: 0.86rem; margin-bottom: 1rem; }
           .cn-rating-head { flex-direction: column; align-items: flex-start; }
           .cn-rating-pill { flex: 1 1 calc(50% - 0.35rem); justify-content: center; text-align: center; }
-          .cn-feedback-grid { grid-template-columns: 1fr; }
         }
       `}</style>
 
@@ -784,6 +745,7 @@ export default function Contact({ authUser = null }) {
                   <p className="cn-hours-title" style={{ marginBottom: "0.8rem" }}>Find Us Online</p>
                   <div className="cn-socials">
                     <a href="https://wa.me/918055895353" className="cn-social-btn" target="_blank" rel="noreferrer">WhatsApp</a>
+                    <a href="https://www.instagram.com/petalsandflora2725?igsh=a292dGx0bHBmZ3U5" className="cn-social-btn" target="_blank" rel="noreferrer">Instagram</a>
                     <a href="mailto:petalsandflora@gmail.com" className="cn-social-btn">Email</a>
                     <a href="tel:+918055895353" className="cn-social-btn">Call</a>
                   </div>
@@ -815,42 +777,8 @@ export default function Contact({ authUser = null }) {
             </TiltCard>
           </motion.div>
         </div>
-
-        <div className="cn-recent-wrap">
-          <motion.div initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.45 }}>
-            <TiltCard>
-              <div className="cn-glass cn-side-panel" style={{ padding: "1.6rem" }}>
-                <p className="cn-hours-title">Recent Feedback</p>
-                <div className="cn-feedback-grid">
-                  {recentFeedback.length === 0 ? (
-                    <div className="cn-address">
-                      <p>No feedback yet. Be the first to share how the shop or flowers felt for you.</p>
-                    </div>
-                  ) : (
-                    recentFeedback.map((entry) => (
-                      <div key={entry.id} className="cn-glass cn-feedback-card">
-                        <div className="cn-feedback-head">
-                          <div>
-                            <div className="cn-feedback-name">{entry.user_name}</div>
-                            <div className="cn-feedback-meta">
-                              {entry.target_type === "flower" && entry.product_name
-                                ? `Flower - ${entry.product_name}`
-                                : "Shop"}
-                            </div>
-                          </div>
-                          <div className="cn-feedback-stars">{"★".repeat(Number(entry.rating || 0))}</div>
-                        </div>
-                        <div className="cn-feedback-title">{entry.title}</div>
-                        <div className="cn-feedback-message">{entry.message}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </TiltCard>
-          </motion.div>
-        </div>
       </div>
     </>
   );
 }
+
