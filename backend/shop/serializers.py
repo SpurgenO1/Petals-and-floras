@@ -40,6 +40,7 @@ class OrderSerializer(serializers.Serializer):
     payment_status = serializers.CharField(required=False, default="UNPAID", max_length=20)
     payment_order_id = serializers.CharField(required=False, allow_blank=True, max_length=100)
     payment_id = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    payment_signature = serializers.CharField(required=False, allow_blank=True, max_length=255)
     delivery_date = serializers.DateField()
     delivery_slot = serializers.ChoiceField(choices=[choice[0] for choice in get_slot_choices()], write_only=False)
     same_day_delivery = serializers.BooleanField(required=False, default=False)

@@ -49,12 +49,14 @@ function TiltCard({ children }) {
 }
 
 // ── Cart Item Row ─────────────────────────────────────────────────────────────
-function CartItem({ item, onRemove, index }) {
+function CartItem({ item, onRemove, onUpdateQuantity, index }) {
   const [removing, setRemoving] = useState(false);
+  const cartKey = item.cartKey || `${item.id}-${item.purchaseType || "flower"}`;
+  const quantity = Number(item.qty || 1);
 
   function handleRemove() {
     setRemoving(true);
-    setTimeout(() => onRemove(item.id), 320);
+    setTimeout(() => onRemove(cartKey), 320);
   }
 
   return (
@@ -70,14 +72,32 @@ function CartItem({ item, onRemove, index }) {
         <div className="ct-flower-dot">🌸</div>
         <div className="ct-item-info">
           <p className="ct-item-name">{item.name}</p>
-          <p className="ct-item-cat">{item.category || "Flower"}</p>
+          <p className="ct-item-cat">{item.purchaseType ? `${item.purchaseType[0].toUpperCase()}${item.purchaseType.slice(1)}` : "Flower"}</p>
         </div>
       </div>
 
       {/* qty × price */}
       <div className="ct-item-mid">
-        <span className="ct-qty-badge">×{item.qty || 1}</span>
-        <span className="ct-item-price">₹{(Number(item.price) * Number(item.qty || 1)).toLocaleString()}</span>
+        <div className="ct-qty-controls">
+          <button
+            type="button"
+            className="ct-qty-btn"
+            onClick={() => onUpdateQuantity(cartKey, quantity - 1)}
+            aria-label={`Decrease quantity for ${item.name}`}
+          >
+            -
+          </button>
+          <span className="ct-qty-badge">x{quantity}</span>
+          <button
+            type="button"
+            className="ct-qty-btn"
+            onClick={() => onUpdateQuantity(cartKey, quantity + 1)}
+            aria-label={`Increase quantity for ${item.name}`}
+          >
+            +
+          </button>
+        </div>
+        <span className="ct-item-price">₹{(Number(item.price) * quantity).toLocaleString()}</span>
       </div>
 
       {/* remove */}
@@ -94,7 +114,7 @@ function CartItem({ item, onRemove, index }) {
 }
 
 // ── Main Cart ─────────────────────────────────────────────────────────────────
-export default function Cart({ cart = [], removeFromCart = () => {}, authUser = null }) {
+export default function Cart({ cart = [], removeFromCart = () => {}, updateCartQuantity = () => {}, authUser = null }) {
   const total = cart.reduce(
     (sum, item) => sum + Number(item.price || 0) * Number(item.qty || 1),
     0
@@ -240,6 +260,31 @@ export default function Cart({ cart = [], removeFromCart = () => {}, authUser = 
 
         .ct-item-mid {
           display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0;
+        }
+        .ct-qty-controls {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+        }
+        .ct-qty-btn {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          border: 1px solid rgba(232,83,109,0.28);
+          background: rgba(192,53,78,0.14);
+          color: #fff;
+          font-size: 1rem;
+          line-height: 1;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: transform 0.18s, background 0.18s, border-color 0.18s;
+        }
+        .ct-qty-btn:hover {
+          background: rgba(192,53,78,0.26);
+          border-color: rgba(232,83,109,0.48);
+          transform: translateY(-1px);
         }
         .ct-qty-badge {
           background: rgba(192,53,78,0.22);
@@ -418,10 +463,11 @@ export default function Cart({ cart = [], removeFromCart = () => {}, authUser = 
                 <AnimatePresence>
                   {cart.map((item, i) => (
                     <CartItem
-                      key={item.id}
+                      key={item.cartKey || `${item.id}-${item.purchaseType || "flower"}`}
                       item={item}
                       index={i}
                       onRemove={removeFromCart}
+                      onUpdateQuantity={updateCartQuantity}
                     />
                   ))}
                 </AnimatePresence>

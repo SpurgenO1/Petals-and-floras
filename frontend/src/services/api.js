@@ -240,6 +240,19 @@ export const createPaymentOrder = (amountInPaise) => {
   }
 };
 
+export const verifyPaymentOrder = (payload) => {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid payment verification payload");
+  }
+
+  try {
+    return requestWithFallback({ method: "post", url: "payment/verify/", data: payload });
+  } catch (error) {
+    console.error("Failed to verify payment order:", error);
+    throw error;
+  }
+};
+
 export const getDeliveryOptions = (date) => {
   const search = date ? `?date=${encodeURIComponent(date)}` : "";
   return requestWithFallback({ method: "get", url: `delivery/options/${search}` });

@@ -24,6 +24,7 @@ function AppLayout({
   cart,
   setCart,
   removeFromCart,
+  updateCartQuantity,
   clearCart,
   cartCount,
   handleAuthSuccess,
@@ -42,7 +43,7 @@ function AppLayout({
             <Route path="/products" element={<Products cart={cart} setCart={setCart} />} />
             <Route
               path="/cart"
-              element={<Cart cart={cart} removeFromCart={removeFromCart} authUser={authUser} />}
+              element={<Cart cart={cart} removeFromCart={removeFromCart} updateCartQuantity={updateCartQuantity} authUser={authUser} />}
             />
             <Route
               path="/checkout"
@@ -136,8 +137,23 @@ function App() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const removeFromCart = (idToRemove) => {
-    setCart(cart.filter((item) => item.id !== idToRemove));
+  const removeFromCart = (cartKeyToRemove) => {
+    setCart((current) =>
+      current.filter((item) => (item.cartKey || `${item.id}-${item.purchaseType || "flower"}`) !== cartKeyToRemove)
+    );
+  };
+
+  const updateCartQuantity = (cartKeyToUpdate, nextQty) => {
+    const safeQty = Number(nextQty || 0);
+    setCart((current) =>
+      safeQty <= 0
+        ? current.filter((item) => (item.cartKey || `${item.id}-${item.purchaseType || "flower"}`) !== cartKeyToUpdate)
+        : current.map((item) =>
+            (item.cartKey || `${item.id}-${item.purchaseType || "flower"}`) === cartKeyToUpdate
+              ? { ...item, qty: safeQty }
+              : item
+          )
+    );
   };
 
   const clearCart = () => {
@@ -169,6 +185,7 @@ function App() {
           cart={cart}
           setCart={setCart}
           removeFromCart={removeFromCart}
+          updateCartQuantity={updateCartQuantity}
           clearCart={clearCart}
           cartCount={cartCount}
           handleAuthSuccess={handleAuthSuccess}

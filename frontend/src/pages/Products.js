@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Link } from "react-router-dom";
 import { getProducts } from "../services/api";
 import { catalogProducts, PRODUCT_SPECIFIC_IMAGES } from "../data/catalogProducts";
@@ -19,6 +19,14 @@ const CATEGORY_STYLES = {
   "Cut Foliages": { start: "#c8e6c9", end: "#2e7d32", label: "Leaf" },
   "Hybrid Chrysanthamums": { start: "#fff7bc", end: "#fbc02d", label: "Mum" },
   "Bouquet & Car Deco Materials": { start: "#d7ccc8", end: "#6d4c41", label: "Deco" },
+  "Real Flower Bouquets": { start: "#ffd6e0", end: "#c2185b", label: "Bouquet" },
+  "Artificial Flower Bouquets": { start: "#efe0ff", end: "#8e44ad", label: "Craft" },
+  "Chocolate Bouquets": { start: "#f5d3b3", end: "#6d4c41", label: "Choco" },
+  "Jewelry Bouquets": { start: "#f8e6a0", end: "#b8860b", label: "Jewels" },
+  "Gift Bouquets": { start: "#ffe0b2", end: "#ef6c00", label: "Gift" },
+  "Handmade Bouquets": { start: "#d7f0ff", end: "#1976d2", label: "Handmade" },
+  "Occasion Bouquets": { start: "#ffd1dc", end: "#ad1457", label: "Occasion" },
+  "Innovative Bouquets": { start: "#d0f4de", end: "#00897b", label: "Creative" },
 };
 
 function buildProductImage(product) {
@@ -46,6 +54,133 @@ function buildProductImage(product) {
   `)}`;
 }
 
+function buildProductDescription(product) {
+  const category = product.category || "Floral";
+  const name = product.name || "Unknown";
+  const baseDescription = String(product.description || "").trim();
+  const defaultCatalogDescription = `${name} from the ${category} collection.`;
+  const normalizedName = name.toLowerCase();
+
+  const categoryHighlights = {
+    Roses: "Known for their layered petals and timeless romantic appeal, these roses bring warmth, elegance, and a rich visual presence to bouquets and floral styling.",
+    Carnations: "Carnations offer soft texture, long-lasting freshness, and a beautifully full bloom that works well for everyday gifting, events, and graceful arrangements.",
+    "Asiatic Lilies": "These lilies stand out with bold petals, clean lines, and a lively shape that adds brightness and refined movement to floral designs.",
+    "Oriental Lilies": "Oriental lilies create a luxurious look with larger blooms, graceful form, and a dramatic finish that feels premium in any arrangement.",
+    "Exotic & Novelties": "This variety brings a distinctive personality, unusual shape, and standout charm for designs that need something more expressive and memorable.",
+    Gerberas: "Gerberas add cheerful color, a fresh open face, and a playful energy that instantly lifts bouquets, celebrations, and display work.",
+    Orchids: "Orchids deliver a polished, premium look with smooth petals and an elegant silhouette that feels modern, graceful, and refined.",
+    Fillers: "These stems add softness, volume, and balance around focal blooms, helping bouquets feel fuller, more natural, and beautifully finished.",
+    "Cut Foliages": "These greens bring structure, texture, and depth to arrangements, giving every bouquet a fresh, layered, and professionally styled look.",
+    "Hybrid Chrysanthamums": "These blooms offer rich petal detail, fullness, and dependable freshness, making them ideal for generous and eye-catching floral work.",
+    "Bouquet & Car Deco Materials": "This product supports bouquet wrapping or floral presentation with useful finishing detail, structure, and decorative support.",
+    "Real Flower Bouquets": "These bouquets highlight the natural beauty of fresh blooms with elegant shaping, layered textures, and a graceful hand-tied presentation.",
+    "Artificial Flower Bouquets": "These bouquets offer long-lasting beauty with crafted petals, decorative styling, and a polished look that stays lovely over time.",
+    "Chocolate Bouquets": "These bouquets combine gifting charm with sweet treats, creating a playful and impressive presentation that feels festive and indulgent.",
+    "Jewelry Bouquets": "These bouquets turn accessories into a beautifully arranged gift presentation, making the surprise feel more premium, thoughtful, and memorable.",
+    "Gift Bouquets": "These bouquets blend flowers with keepsakes or playful extras, making them feel more personal, expressive, and celebration-ready.",
+    "Handmade Bouquets": "These bouquets stand out through crafted details, creative materials, and a thoughtful handmade finish that feels warm and unique.",
+    "Occasion Bouquets": "These bouquets are designed around life moments and celebrations, helping the gift feel more meaningful, timely, and emotionally special.",
+    "Innovative Bouquets": "These bouquets bring creative gifting ideas together in a standout format that feels modern, surprising, and highly memorable."
+  };
+
+  const usageHighlights = {
+    Roses: "A lovely choice for gifting, bouquet work, and romantic floral styling.",
+    Carnations: "A versatile option for bouquets, event decor, and heartfelt gifting.",
+    "Asiatic Lilies": "Ideal for statement bouquets, premium gifts, and elegant event arrangements.",
+    "Oriental Lilies": "Perfect for luxurious bouquets, premium occasions, and graceful floral displays.",
+    "Exotic & Novelties": "Best for standout bouquets, creative styling, and modern floral combinations.",
+    Gerberas: "Perfect for cheerful gifting, celebrations, and bright everyday arrangements.",
+    Orchids: "Well suited for premium gifts, elegant bouquets, and sophisticated floral styling.",
+    Fillers: "Best used to add flow, softness, and fullness around focal flowers in bouquets.",
+    "Cut Foliages": "Great for bouquet styling, floral layering, and adding depth around fresh flowers.",
+    "Hybrid Chrysanthamums": "A dependable pick for fuller bouquets, gifting, and vibrant arrangement work.",
+    "Bouquet & Car Deco Materials": "Useful for finishing bouquets, presentation styling, and decorative setup.",
+    "Real Flower Bouquets": "Perfect for heartfelt gifting, celebrations, home decor, and premium floral presentation.",
+    "Artificial Flower Bouquets": "A lovely choice for keepsake gifting, decor styling, and moments where lasting beauty matters.",
+    "Chocolate Bouquets": "Ideal for birthdays, surprises, festive gifting, and sweet celebration moments.",
+    "Jewelry Bouquets": "A refined choice for romantic gifting, milestone surprises, and elegant special occasions.",
+    "Gift Bouquets": "Great for surprise gifting, fun celebrations, and personal present combinations.",
+    "Handmade Bouquets": "Best for custom gifting, sentimental moments, and handcrafted presentation.",
+    "Occasion Bouquets": "Perfect for birthdays, weddings, anniversaries, graduations, and family celebrations.",
+    "Innovative Bouquets": "Well suited for creative gifting, themed surprises, and standout personalized presents."
+  };
+
+  const categoryMood = {
+    Roses: "It carries the classic beauty and soft fullness that make rose varieties so admired for gifting and premium bouquet work.",
+    Carnations: "It brings a ruffled texture and generous bloom shape that helps arrangements feel fuller, softer, and more expressive.",
+    "Asiatic Lilies": "It offers a clean petal shape and bright floral presence that instantly adds freshness and elegant movement.",
+    "Oriental Lilies": "It gives arrangements a luxurious look with broader petals, graceful form, and a naturally premium feel.",
+    "Exotic & Novelties": "It stands out through its unusual structure and tropical personality, making designs feel more artistic and memorable.",
+    Gerberas: "It adds an open cheerful face and lively color energy that works beautifully in happy, welcoming floral designs.",
+    Orchids: "It has a polished silhouette and graceful petal finish that gives bouquets a refined and modern character.",
+    Fillers: "It helps soften transitions between focal flowers while adding light texture and a finished garden-style feel.",
+    "Cut Foliages": "It adds freshness, structure, and layered greenery that makes bouquets look richer and more professionally styled.",
+    "Hybrid Chrysanthamums": "It brings dense petal detail and lasting body that supports fuller, more eye-catching bouquet work.",
+    "Bouquet & Car Deco Materials": "It supports floral presentation with practical structure and decorative value for polished finishing.",
+    "Real Flower Bouquets": "It carries the freshness, fragrance, and organic beauty that make real flower gifting feel timeless and heartfelt.",
+    "Artificial Flower Bouquets": "It offers decorative charm with easy care, making it a practical yet stylish gifting option.",
+    "Chocolate Bouquets": "It feels cheerful and indulgent, blending the look of a bouquet with the delight of favorite chocolates.",
+    "Jewelry Bouquets": "It creates a more luxurious impression by combining beautiful presentation with a lasting wearable gift.",
+    "Gift Bouquets": "It adds personality and surprise by combining bouquet styling with thoughtful non-floral elements.",
+    "Handmade Bouquets": "It feels personal and artistic, with crafted details that make the bouquet more expressive and memorable.",
+    "Occasion Bouquets": "It brings the right tone for celebration, helping the bouquet match the mood of the special day.",
+    "Innovative Bouquets": "It stands out through creativity and novelty, making the gift feel fresh, modern, and conversation-worthy."
+  };
+
+  const colorNotes = [
+    { keywords: ["white", "half white"], text: "Its clean white tone gives arrangements a calm, fresh, and polished finish that pairs beautifully with almost any accent flower." },
+    { keywords: ["red"], text: "Its rich red character creates a bold focal point and adds warmth, romance, and dramatic depth to bouquet styling." },
+    { keywords: ["pink", "dark pink", "light pink", "sexy pink"], text: "Its pink tones bring a soft, charming, and graceful mood that feels both expressive and easy to gift." },
+    { keywords: ["yellow", "gold", "golden"], text: "Its sunny yellow-gold tone brightens arrangements with cheerful energy and a naturally uplifting look." },
+    { keywords: ["purple", "blue", "violet"], text: "Its cooler violet-blue tone gives designs a more distinctive, premium, and slightly dramatic personality." },
+    { keywords: ["orange", "peach"], text: "Its warm orange-peach tone adds friendly brightness and a lively seasonal feel to floral work." },
+    { keywords: ["green"], text: "Its green character adds freshness and a modern botanical feel that works especially well in textured bouquet designs." },
+  ];
+
+  const nameSpecificNotes = [
+    { keywords: ["spray"], text: "Because it grows in a spray style, it brings multiple smaller blooms on a stem and creates a naturally fuller look in bunches and arrangements." },
+    { keywords: ["button"], text: "Its button-like bloom form gives a neat, compact texture that works well for detail work and layered bouquet composition." },
+    { keywords: ["double"], text: "Its double-layered bloom appearance gives it extra fullness and a richer visual texture in bouquet styling." },
+    { keywords: ["mokara"], text: "Its mokara-style form gives it a sleek tropical elegance that feels vibrant, structured, and premium." },
+    { keywords: ["dyed"], text: "Its dyed finish gives it a more striking decorative look when you want something unusual and visually standout." },
+    { keywords: ["leaves", "leaf", "fern", "grass", "palm", "plant", "rod", "ivy", "monstera", "xanadu", "dracena", "kamini", "carpus", "cypres"], text: "Its leafy texture helps frame focal blooms beautifully and adds depth, movement, and a natural green balance to the finished design." },
+    { keywords: ["ginger", "heliconia", "bird of paradise", "anthurium", "pineapple", "banana flower", "brassica", "hydrangea", "agapanthus", "callalily"], text: "Its distinctive botanical form makes it especially useful when you want arrangements to feel more exotic, sculptural, and memorable." },
+    { keywords: ["wrapper", "sheet", "foam box", "bridal handle", "deco", "petite"], text: "Its practical design helps support bouquet making, presentation styling, and decorative floral finishing with a cleaner professional result." },
+    { keywords: ["bouquet"], text: "Its bouquet presentation makes the gift feel fuller, more celebratory, and ready for a beautiful handover the moment it arrives." },
+    { keywords: ["chocolate", "ferrero", "dairy milk", "kinder"], text: "Its sweet gifting concept adds playful charm and makes the bouquet feel festive, generous, and instantly enjoyable." },
+    { keywords: ["earring", "bracelet", "ring", "jewelry"], text: "Its accessory-based design gives it a premium keepsake quality, so the bouquet feels elegant even after the celebration." },
+    { keywords: ["teddy", "money", "snack", "cosmetic", "stationery"], text: "Its themed gift combination makes it feel personal and fun, with a presentation that goes beyond a standard bouquet." },
+    { keywords: ["origami", "photo", "message", "fabric", "crochet", "paper", "wooden"], text: "Its crafted character gives it a handmade personality that feels thoughtful, creative, and especially meaningful as a gift." },
+    { keywords: ["birthday", "wedding", "anniversary", "graduation", "baby shower"], text: "Its occasion-focused style helps the bouquet match the celebration beautifully and makes the gift feel more intentional." },
+    { keywords: ["led", "balloon", "perfume", "cupcake", "fruit", "book", "personalized"], text: "Its inventive concept gives the bouquet a surprise factor that feels modern, playful, and wonderfully different from ordinary gifting." },
+  ];
+
+  const foundColorNote =
+    colorNotes.find((entry) => entry.keywords.some((keyword) => normalizedName.includes(keyword)))?.text ||
+    "Its natural tone and texture make it easy to blend with other flowers while still holding its own presence in the arrangement.";
+
+  const foundSpecificNote =
+    nameSpecificNotes.find((entry) => entry.keywords.some((keyword) => normalizedName.includes(keyword)))?.text ||
+    "Its individual character gives designers flexibility when creating bouquets that feel balanced, fresh, and a little different from standard mixes.";
+
+  if (baseDescription && baseDescription !== defaultCatalogDescription && baseDescription.length > 90) {
+    return baseDescription;
+  }
+
+  const intro =
+    baseDescription && baseDescription !== defaultCatalogDescription
+      ? `${baseDescription.replace(/[. ]+$/, "")}.`
+      : `${name} is a beautiful choice from our ${category} collection.`;
+
+  return [
+    intro,
+    categoryHighlights[category] || "This item adds natural beauty, texture, and freshness to floral styling and thoughtful gifting.",
+    categoryMood[category] || foundColorNote,
+    foundSpecificNote,
+    usageHighlights[category] || "A versatile option for bouquets, decorative styling, and fresh floral presentation."
+  ].join(" ");
+}
+
 function normalizeProduct(product) {
   const category = product.category || "Floral";
   const name = product.name || "Unknown";
@@ -62,7 +197,7 @@ function normalizeProduct(product) {
     ...product,
     price: Number(product.price || 0),
     category: category,
-    description: product.description || `${name} from our floral catalog.`,
+    description: buildProductDescription({ ...product, category, name }),
     image: imageUrl,
     isFromAdmin: Boolean(product.isFromAdmin),
   };
@@ -164,20 +299,13 @@ function TiltCard({ children }) {
   );
 }
 
-function ProductCard({ product, addToCart }) {
-  const [added, setAdded] = useState(false);
+function ProductCard({ product, onOpenDetails }) {
   const priceLabel = product.price > 0 ? `Rs ${product.price}` : "Price on request";
   const sourceLabel = product.isFromAdmin ? "Live item" : "Catalog item";
 
-  function handleAdd() {
-    addToCart(product);
-    setAdded(true);
-    setTimeout(() => setAdded(false), 1200);
-  }
-
   return (
     <TiltCard>
-      <div className="card card-clickable" onClick={handleAdd}>
+      <div className="card">
         <div className="card-img-wrap">
           <img src={product.image} alt={product.name} className="card-img" />
           <div className="img-overlay" />
@@ -185,20 +313,19 @@ function ProductCard({ product, addToCart }) {
         </div>
         <div className="card-body">
           <p className="card-cat">{product.category}</p>
-          <h3 className="card-title">{product.name}</h3>
+          <button type="button" className="card-title-btn" onClick={() => onOpenDetails(product)}>
+            <h3 className="card-title">{product.name}</h3>
+          </button>
           <p className="card-desc">{product.description}</p>
           <div className="card-footer">
             <span className="stock-note">{sourceLabel}</span>
             <motion.button
               type="button"
-              className={`btn-add ${added ? "btn-added" : ""}`}
+              className="btn-add"
               whileTap={{ scale: 0.92 }}
-              onClick={(event) => {
-                event.stopPropagation();
-                handleAdd();
-              }}
+              onClick={() => onOpenDetails(product)}
             >
-              {added ? "Added ✓" : "Add to cart"}
+              Choose type
             </motion.button>
           </div>
         </div>
@@ -208,6 +335,51 @@ function ProductCard({ product, addToCart }) {
 }
 
 // ─── Price Range Slider ───────────────────────────────────────────────────────
+function ProductDetailsModal({ product, onClose, onSelectType }) {
+  if (!product) return null;
+  const priceLabel = product.price > 0 ? `Rs ${product.price}` : "Price on request";
+
+  return (
+    <motion.div
+      className="product-modal-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        className="product-modal"
+        initial={{ opacity: 0, scale: 0.94, y: 24 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.97, y: 10 }}
+        transition={{ duration: 0.22, ease: "easeOut" }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button type="button" className="product-modal-close" onClick={onClose} aria-label="Close product details">
+          x
+        </button>
+        <div className="product-modal-media">
+          <img src={product.image} alt={product.name} className="product-modal-image" />
+        </div>
+        <div className="product-modal-content">
+          <p className="product-modal-category">{product.category}</p>
+          <h3 className="product-modal-title">{product.name}</h3>
+          <p className="product-modal-description">{product.description}</p>
+          <div className="product-modal-price">{priceLabel}</div>
+          <div className="product-modal-actions">
+            <button type="button" className="product-type-btn primary" onClick={() => onSelectType("flower")}>
+              Flower
+            </button>
+            <button type="button" className="product-type-btn secondary" onClick={() => onSelectType("bouquet")}>
+              Bouquet
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function PriceRangeDropdown({ minPrice, maxPrice, minVal, maxVal, onMinChange, onMaxChange, onClose }) {
   const MAX = maxPrice || 5000;
   const MIN = minPrice || 0;
@@ -251,8 +423,12 @@ function PriceRangeDropdown({ minPrice, maxPrice, minVal, maxVal, onMinChange, o
 }
 
 export default function Products({ cart = [], setCart = () => {} }) {
+  const fallbackCatalogProducts = useMemo(
+    () => catalogProducts.map((product) => normalizeProduct({ ...product, isFromAdmin: false })),
+    []
+  );
   const [products, setProducts] = useState(() =>
-    catalogProducts.map((product) => normalizeProduct({ ...product, isFromAdmin: false }))
+    fallbackCatalogProducts
   );
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -263,6 +439,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
   const [showCartBubble, setShowCartBubble] = useState(false);
   const [categoryInterest, setCategoryInterest] = useState(() => readCategoryInterest());
   const [isCompactView, setIsCompactView] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
   // Dropdown states
   const [openDropdown, setOpenDropdown] = useState(null); // 'price' | 'category' | 'sort' | null
   const hasProductsRef = useRef(products.length > 0);
@@ -290,7 +467,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+  }, [fallbackCatalogProducts]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -299,7 +476,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
     syncCompactView();
     compactQuery.addEventListener("change", syncCompactView);
     return () => compactQuery.removeEventListener("change", syncCompactView);
-  }, []);
+  }, [fallbackCatalogProducts]);
 
   useEffect(() => {
     hasProductsRef.current = products.length > 0;
@@ -314,6 +491,15 @@ export default function Products({ cart = [], setCart = () => {} }) {
     const timer = window.setTimeout(() => setShowCartBubble(false), 5000);
     return () => window.clearTimeout(timer);
   }, [cart]);
+
+  useEffect(() => {
+    if (!selectedProduct) return undefined;
+    function handleEscape(event) {
+      if (event.key === "Escape") setSelectedProduct(null);
+    }
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [selectedProduct]);
 
   const recordCategoryInterest = (category, amount = 1) => {
     if (!category) return;
@@ -335,17 +521,29 @@ export default function Products({ cart = [], setCart = () => {} }) {
       try {
         const response = await getProducts();
         if (!ignore) {
-          const nextProducts = Array.isArray(response.data)
+          const liveProducts = Array.isArray(response.data)
             ? response.data.map((p) => normalizeProduct({ ...p, isFromAdmin: true }))
             : [];
-          const nextSignature = JSON.stringify(nextProducts.map((p) => ({ id: p.id, name: p.name, category: p.category, price: p.price, description: p.description, isFromAdmin: p.isFromAdmin })));
-          if (nextSignature !== productsSignatureRef.current) setProducts(nextProducts);
-          setError(nextProducts.length > 0 ? "" : "No products found in MongoDB or Django admin.");
+          const mergedProducts = [...liveProducts];
+          const existingKeys = new Set(
+            liveProducts.map((product) => `${String(product.category || "").toLowerCase()}::${String(product.name || "").toLowerCase()}`)
+          );
+
+          fallbackCatalogProducts.forEach((product) => {
+            const productKey = `${String(product.category || "").toLowerCase()}::${String(product.name || "").toLowerCase()}`;
+            if (!existingKeys.has(productKey)) {
+              mergedProducts.push(product);
+            }
+          });
+
+          const nextSignature = JSON.stringify(mergedProducts.map((p) => ({ id: p.id, name: p.name, category: p.category, price: p.price, description: p.description, isFromAdmin: p.isFromAdmin })));
+          if (nextSignature !== productsSignatureRef.current) setProducts(mergedProducts);
+          setError(mergedProducts.length > 0 ? "" : "No products found in MongoDB or Django admin.");
           lastFetchTimeRef.current = now;
         }
       } catch {
         if (!ignore) {
-          if (!hasProductsRef.current) setProducts(catalogProducts.map((p) => normalizeProduct({ ...p, isFromAdmin: false })));
+          if (!hasProductsRef.current) setProducts(fallbackCatalogProducts);
           setError(hasProductsRef.current
             ? "Live sync is temporarily unavailable. Current products will refresh when the backend reconnects."
             : "Showing catalog fallback. Start the backend server to load live products from MongoDB or Django admin."
@@ -359,15 +557,20 @@ export default function Products({ cart = [], setCart = () => {} }) {
     function handleFocus() { loadProducts({ background: true }); }
     window.addEventListener("focus", handleFocus);
     return () => { ignore = true; window.removeEventListener("focus", handleFocus); };
-  }, []);
+  }, [fallbackCatalogProducts]);
 
-  const addToCart = (product) => {
+  const addToCart = (product, purchaseType) => {
     recordCategoryInterest(product.category, 3);
+    const cartKey = `${product.id}-${purchaseType}`;
     setCart((prev) => {
-      const exists = prev.find((item) => item.id === product.id);
+      const exists = prev.find((item) => (item.cartKey || `${item.id}-${item.purchaseType || "flower"}`) === cartKey);
       return exists
-        ? prev.map((item) => (item.id === product.id ? { ...item, qty: (item.qty || 1) + 1 } : item))
-        : [...prev, { ...product, qty: 1 }];
+        ? prev.map((item) =>
+            (item.cartKey || `${item.id}-${item.purchaseType || "flower"}`) === cartKey
+              ? { ...item, qty: (item.qty || 1) + 1, purchaseType, cartKey }
+              : item
+          )
+        : [...prev, { ...product, qty: 1, purchaseType, cartKey }];
     });
   };
 
@@ -710,13 +913,18 @@ export default function Products({ cart = [], setCart = () => {} }) {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
           gap: 2rem;
+          align-items: stretch;
         }
+        .grid-item { display: flex; height: 100%; }
 
         /* ── Cards (unchanged) ── */
-        .tilt-wrapper { position: relative; border-radius: 20px; transform-style: preserve-3d; }
+        .tilt-wrapper { position: relative; border-radius: 20px; transform-style: preserve-3d; width: 100%; height: 100%; }
         .glare { position: absolute; inset: 0; border-radius: 20px; pointer-events: none; z-index: 5; transition: background 0.05s; }
         .card {
           height: 100%;
+          width: 100%;
+          display: flex;
+          flex-direction: column;
           background: rgba(255,255,255,0.06);
           border: 1px solid rgba(255,255,255,0.15);
           backdrop-filter: blur(20px) saturate(1.8);
@@ -724,13 +932,8 @@ export default function Products({ cart = [], setCart = () => {} }) {
           box-shadow: 0 2px 0 rgba(255,255,255,0.08) inset, 0 20px 60px rgba(0,0,0,0.45), 0 4px 20px rgba(192,53,78,0.2);
           transition: box-shadow 0.3s, transform 0.2s, border-color 0.2s;
         }
-        .card-clickable { cursor: pointer; outline: none; }
         .tilt-wrapper:hover .card {
           box-shadow: 0 2px 0 rgba(255,255,255,0.12) inset, 0 30px 70px rgba(0,0,0,0.55), 0 8px 35px rgba(192,53,78,0.45);
-        }
-        .card-clickable:focus-visible {
-          border-color: rgba(255, 183, 204, 0.95);
-          box-shadow: 0 0 0 3px rgba(255, 183, 204, 0.25), 0 20px 60px rgba(0,0,0,0.45), 0 4px 20px rgba(192,53,78,0.2);
         }
         .card-img-wrap { position: relative; overflow: hidden; height: 220px; }
         .card-img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.55s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
@@ -743,22 +946,95 @@ export default function Products({ cart = [], setCart = () => {} }) {
           padding: 0.25rem 0.85rem; border-radius: 999px; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
         }
         .card-body {
-          display: flex; flex-direction: column; height: calc(100% - 220px);
+          display: flex; flex-direction: column; flex: 1; min-height: 0;
           padding: 1.2rem 1.4rem 1.4rem; transform: translateZ(30px);
         }
         .card-cat { font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--rose-light); margin-bottom: 0.45rem; }
-        .card-title { font-family: 'Cormorant Garamond', serif; font-size: 1.35rem; font-weight: 600; color: #fff; line-height: 1.25; margin-bottom: 0.8rem; }
-        .card-desc { color: rgba(255,255,255,0.72); font-size: 0.92rem; line-height: 1.55; margin-bottom: 1rem; flex: 1; }
-        .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+        .card-title-btn {
+          background: none;
+          border: none;
+          padding: 0;
+          text-align: left;
+          cursor: pointer;
+        }
+        .card-title { font-family: 'Cormorant Garamond', serif; font-size: 1.35rem; font-weight: 600; color: #fff; line-height: 1.25; margin-bottom: 0.8rem; min-height: 3.4rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .card-title-btn:hover .card-title, .card-title-btn:focus-visible .card-title { color: var(--rose-light); }
+        .card-desc { color: rgba(255,255,255,0.72); font-size: 0.92rem; line-height: 1.55; margin-bottom: 1rem; flex: 1; min-height: 4.3rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: auto; }
         .stock-note { color: rgba(255,255,255,0.74); font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; }
         .btn-add {
+          min-width: 132px;
           padding: 0.48rem 1.15rem; border-radius: 999px;
           border: 1px solid var(--rose-petal); background: transparent; color: var(--rose-light);
           font-family: 'Jost', sans-serif; font-size: 0.84rem; letter-spacing: 0.06em; cursor: pointer; transition: all 0.25s;
         }
         .btn-add:hover { background: linear-gradient(135deg, var(--rose-mid), var(--rose-deep)); color: #fff; box-shadow: 0 4px 18px rgba(192,53,78,0.5); border-color: transparent; }
-        .btn-added { background: linear-gradient(135deg, #2d7a4f, #1f5c39); border-color: transparent; color: #fff; }
-        .btn-add:focus-visible, .search-pill input:focus-visible, .price-input:focus-visible { outline: 3px solid rgba(255, 183, 204, 0.78); outline-offset: 2px; }
+        .btn-add:focus-visible, .search-pill input:focus-visible, .price-input:focus-visible, .card-title-btn:focus-visible, .product-modal-close:focus-visible, .product-type-btn:focus-visible { outline: 3px solid rgba(255, 183, 204, 0.78); outline-offset: 2px; }
+
+        .product-modal-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 200;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1.5rem;
+          background: rgba(8, 0, 4, 0.72);
+          backdrop-filter: blur(10px);
+        }
+        .product-modal {
+          position: relative;
+          width: min(760px, 100%);
+          display: grid;
+          grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+          background: linear-gradient(145deg, rgba(51, 5, 20, 0.96), rgba(20, 2, 10, 0.98));
+          border: 1px solid rgba(255,255,255,0.12);
+          border-radius: 28px;
+          overflow: hidden;
+          box-shadow: 0 26px 90px rgba(0,0,0,0.55);
+        }
+        .product-modal-media { min-height: 100%; background: rgba(255,255,255,0.04); }
+        .product-modal-image { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .product-modal-content { padding: 2rem; display: flex; flex-direction: column; gap: 0.9rem; }
+        .product-modal-category { font-size: 0.75rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--rose-light); }
+        .product-modal-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(1.9rem, 3vw, 2.5rem); color: #fff; line-height: 1.1; }
+        .product-modal-description { color: rgba(255,255,255,0.78); line-height: 1.7; font-size: 0.98rem; }
+        .product-modal-price { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; color: #fff; }
+        .product-modal-actions { display: flex; gap: 0.85rem; flex-wrap: wrap; margin-top: 0.4rem; }
+        .product-type-btn {
+          min-width: 140px;
+          padding: 0.85rem 1.2rem;
+          border-radius: 999px;
+          border: 1px solid transparent;
+          font-family: 'Jost', sans-serif;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+        }
+        .product-type-btn:hover { transform: translateY(-1px); }
+        .product-type-btn.primary {
+          background: linear-gradient(135deg, var(--rose-mid), var(--rose-deep));
+          color: #fff;
+          box-shadow: 0 10px 28px rgba(192,53,78,0.34);
+        }
+        .product-type-btn.secondary {
+          background: rgba(255,255,255,0.05);
+          color: var(--rose-light);
+          border-color: rgba(255,255,255,0.18);
+        }
+        .product-modal-close {
+          position: absolute;
+          top: 1rem;
+          right: 1rem;
+          width: 38px;
+          height: 38px;
+          border-radius: 50%;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(10, 0, 4, 0.42);
+          color: #fff;
+          font-size: 1.1rem;
+          cursor: pointer;
+        }
 
         .center-msg { display: flex; align-items: center; justify-content: center; min-height: 60vh; color: rgba(255,255,255,0.65); font-family: 'Cormorant Garamond', serif; font-size: 1.45rem; letter-spacing: 0.06em; position: relative; z-index: 10; }
         .sync-banner { padding: 0.85rem 1rem; border-radius: 16px; position: relative; z-index: 10; color: #fff0d9; background: rgba(128, 73, 15, 0.28); border: 1px solid rgba(255, 193, 94, 0.24); backdrop-filter: blur(12px); font-size: 0.92rem; line-height: 1.5; margin-bottom: 1.25rem; }
@@ -785,12 +1061,16 @@ export default function Products({ cart = [], setCart = () => {} }) {
           .card-body { height: auto; padding: 1rem; }
           .card-img-wrap { height: 180px; }
           .card-cat { font-size: 0.62rem; }
-          .card-title { font-size: 1.08rem; }
-          .card-desc { font-size: 0.82rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+          .card-title { font-size: 1.08rem; min-height: auto; }
+          .card-desc { font-size: 0.82rem; min-height: auto; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
           .card-footer { flex-direction: column; align-items: stretch; }
           .btn-add { width: 100%; }
           .cart-bubble { left: 1rem; right: 1rem; bottom: 5.75rem; text-align: center; }
           .dropdown-panel { position: fixed; left: 0.75rem; right: 0.75rem; top: auto; min-width: unset; }
+          .product-modal { grid-template-columns: 1fr; max-height: calc(100vh - 2rem); overflow-y: auto; }
+          .product-modal-media { max-height: 220px; }
+          .product-modal-content { padding: 1.2rem; }
+          .product-type-btn { width: 100%; }
         }
       `}</style>
 
@@ -816,7 +1096,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
             <div className="filter-bar">
               {/* Results count */}
               <span className="results-count">
-                <strong>{filtered.length}</strong> of {products.length} gifts
+                <strong>{filtered.length}</strong> of {products.length} Flowers
               </span>
               <div className="filter-divider" />
 
@@ -1021,6 +1301,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
                 >
                   {filtered.map((product) => (
                     <motion.div
+                      className="grid-item"
                       key={product.id}
                       onClick={() => recordCategoryInterest(product.category, 1)}
                       variants={{
@@ -1028,7 +1309,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
                         visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] } },
                       }}
                     >
-                      <ProductCard product={product} addToCart={addToCart} />
+                      <ProductCard product={product} onOpenDetails={setSelectedProduct} />
                     </motion.div>
                   ))}
                 </motion.div>
@@ -1060,6 +1341,19 @@ export default function Products({ cart = [], setCart = () => {} }) {
           {cart.reduce((sum, item) => sum + (item.qty || 1), 0) !== 1 ? "s" : ""}
         </MotionLink>
       )}
+
+      <AnimatePresence>
+        {selectedProduct ? (
+          <ProductDetailsModal
+            product={selectedProduct}
+            onClose={() => setSelectedProduct(null)}
+            onSelectType={(purchaseType) => {
+              addToCart(selectedProduct, purchaseType);
+              setSelectedProduct(null);
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
     </>
   );
 }

@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
@@ -87,3 +88,57 @@ class DeliveryManagementApiTests(TestCase):
         self.assertEqual(order.delivery_status, "out_for_delivery")
         self.assertGreaterEqual(order.tracking_events.count(), 1)
         self.assertEqual(order.tracking_events.order_by("-created_at").first().status, "out_for_delivery")
+
+    def test_create_order_rejects_unverified_online_payment_payload(self):
+        delivery_date = timezone.now().date() + timedelta(days=1)
+        payload = {
+            "name": "Maya Patel",
+            "phone": "9876543210",
+            "address": "42 Blossom Street",
+            "city": "Bengaluru",
+            "pincode": "560001",
+            "items": [{"id": "1", "name": "Rose Bouquet", "price": 1499, "qty": 1}],
+            "delivery_date": delivery_date.isoformat(),
+            "delivery_slot": "morning",
+            "payment_method": "ONLINE",
+            "payment_status": "PAID",
+            "payment_order_id": "order_test_123",
+            "payment_id": "pay_test_123",
+        }
+
+        response = self.client.post("/api/order/", payload, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Order.objects.count(), 0)
+
+    @override_settings(RAZORPAY_KEY_ID="rzp_test_key", RAZORPAY_KEY_SECRET="rzp_test_secret")
+    @patch("shop.views.razorpay.Client")
+    def test_verify_payment_creates_paid_online_order(self, mock_razorpay_client):
+        delivery_date = timezone.now().date() + timedelta(days=1)
+        mock_client_instance = mock_razorpay_client.return_value
+        mock_client_instance.utility.verify_payment_signature.return_value = None
+
+        payload = {
+            "name": "Maya Patel",
+            "phone": "9876543210",
+            "address": "42 Blossom Street",
+            "city": "Bengaluru",
+            "pincode": "560001",
+            "items": [{"id": "1", "name": "Rose Bouquet", "price": 1499, "qty": 1}],
+            "delivery_date": delivery_date.isoformat(),
+            "delivery_slot": "morning",
+            "payment_method": "ONLINE",
+            "payment_status": "PAID",
+            "payment_order_id": "order_test_123",
+            "payment_id": "pay_test_123",
+            "payment_signature": "signature_test_123",
+        }
+
+        response = self.client.post("/api/payment/verify/", payload, format="json")
+
+        self.assertEqual(response.status_code, 201)
+        order = Order.objects.get(pk=response.data["admin_order_id"])
+        self.assertEqual(order.status, Order.STATUS_PAID)
+        self.assertEqual(order.payment_order_id, "order_test_123")
+        self.assertEqual(order.payment_id, "pay_test_123")
+        mock_client_instance.utility.verify_payment_signature.assert_called_once()

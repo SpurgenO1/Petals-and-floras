@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { createOrder, getDeliveryOptions } from "../services/api";
+import {
+  createFeedback,
+  createOrder,
+  createPaymentOrder,
+  getDeliveryOptions,
+  verifyPaymentOrder,
+} from "../services/api";
 
 const initialFormState = {
   name: "",
@@ -14,6 +20,14 @@ const initialFormState = {
   delivery_date: "",
   delivery_slot: "",
 };
+
+const initialFeedbackFormState = {
+  rating: "5",
+  title: "",
+  message: "",
+};
+
+const RAZORPAY_CHECKOUT_SCRIPT = "https://checkout.razorpay.com/v1/checkout.js";
 
 const occasionOptions = [
   { value: "birthday", label: "Birthday" },
@@ -38,6 +52,35 @@ const formatDisplayDate = (value) => {
     return value;
   }
 };
+
+const loadRazorpayScript = () =>
+  new Promise((resolve, reject) => {
+    if (typeof window === "undefined") {
+      reject(new Error("Razorpay is only available in the browser."));
+      return;
+    }
+
+    if (window.Razorpay) {
+      resolve(window.Razorpay);
+      return;
+    }
+
+    const existingScript = document.querySelector(`script[src="${RAZORPAY_CHECKOUT_SCRIPT}"]`);
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(window.Razorpay), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("Unable to load Razorpay checkout.")), {
+        once: true,
+      });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = RAZORPAY_CHECKOUT_SCRIPT;
+    script.async = true;
+    script.onload = () => resolve(window.Razorpay);
+    script.onerror = () => reject(new Error("Unable to load Razorpay checkout."));
+    document.body.appendChild(script);
+  });
 
 function Field({ label, name, value, onChange, type = "text", required = false, min, maxLength }) {
   return (
@@ -70,7 +113,7 @@ function SummaryRow({ item }) {
         <p className="summary-name">{item.name}</p>
         <p className="summary-meta">
           Qty: {quantity}
-          {item.category ? ` | ${item.category}` : ""}
+          {item.purchaseType ? ` | ${item.purchaseType[0].toUpperCase()}${item.purchaseType.slice(1)}` : ""}
         </p>
       </div>
       <p className="summary-price">Rs. {lineTotal.toLocaleString()}</p>
@@ -80,6 +123,7 @@ function SummaryRow({ item }) {
 
 export default function Checkout({ cart = [], clearCart = () => {}, authUser = null }) {
   const [form, setForm] = useState(initialFormState);
+  const [paymentMethod, setPaymentMethod] = useState("ONLINE");
   const [loading, setLoading] = useState(false);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -87,6 +131,10 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
   const [success, setSuccess] = useState(false);
   const [placedOrder, setPlacedOrder] = useState(null);
   const [deliveryOptions, setDeliveryOptions] = useState(null);
+  const [feedbackForm, setFeedbackForm] = useState(initialFeedbackFormState);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackError, setFeedbackError] = useState("");
 
   const total = useMemo(
     () => cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0),
@@ -222,6 +270,15 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
     return true;
   };
 
+  const buildOrderPayload = () => ({
+    ...form,
+    items: cart,
+    same_day_delivery: sameDaySelected,
+    status: "Pending",
+    payment_method: paymentMethod,
+    payment_status: paymentMethod === "ONLINE" ? "PAID" : "UNPAID",
+  });
+
   const placeOrder = async () => {
     setError("");
     setMessage("");
@@ -238,32 +295,125 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
     setLoading(true);
 
     try {
-      const response = await createOrder({
-        ...form,
-        items: cart,
-        same_day_delivery: sameDaySelected,
-        status: "Pending",
-        payment_method: "COD",
-        payment_status: "UNPAID",
-      });
+      let response;
+
+      if (paymentMethod === "ONLINE") {
+        const Razorpay = await loadRazorpayScript();
+        if (!Razorpay) {
+          throw new Error("Razorpay checkout is unavailable right now.");
+        }
+
+        const paymentOrderResponse = await createPaymentOrder(Math.round(total * 100));
+        const paymentOrder = paymentOrderResponse.data || {};
+        const orderPayload = buildOrderPayload();
+
+        response = await new Promise((resolve, reject) => {
+          const razorpayInstance = new Razorpay({
+            key: paymentOrder.key,
+            amount: paymentOrder.amount,
+            currency: paymentOrder.currency || "INR",
+            name: "Petals & Floras",
+            description: "Floral order payment",
+            order_id: paymentOrder.id,
+            prefill: {
+              name: form.name || authUser?.name || "",
+              email: authUser?.email || "",
+              contact: form.phone || "",
+            },
+            notes: {
+              delivery_date: form.delivery_date || "",
+              delivery_slot: selectedSlot?.label || form.delivery_slot || "",
+            },
+            theme: {
+              color: "#d94969",
+            },
+            handler: async (paymentResult) => {
+              try {
+                const verifyResponse = await verifyPaymentOrder({
+                  ...orderPayload,
+                  payment_method: "ONLINE",
+                  payment_status: "PAID",
+                  payment_order_id: paymentResult.razorpay_order_id,
+                  payment_id: paymentResult.razorpay_payment_id,
+                  payment_signature: paymentResult.razorpay_signature,
+                });
+                resolve(verifyResponse);
+              } catch (verificationError) {
+                reject(verificationError);
+              }
+            },
+            modal: {
+              ondismiss: () => reject(new Error("Payment was cancelled before completion.")),
+            },
+          });
+
+          razorpayInstance.on("payment.failed", (event) => {
+            reject(new Error(event?.error?.description || "Payment failed. Please try again."));
+          });
+
+          razorpayInstance.open();
+        });
+      } else {
+        response = await createOrder({
+          ...buildOrderPayload(),
+          payment_method: "COD",
+          payment_status: "UNPAID",
+        });
+      }
 
       setPlacedOrder(response.data || null);
       setMessage(response.data?.message || "Order placed successfully.");
+      setFeedbackForm(initialFeedbackFormState);
+      setFeedbackMessage("");
+      setFeedbackError("");
       setSuccess(true);
       setForm((current) => ({
         ...initialFormState,
         delivery_date: current.delivery_date,
         delivery_slot: current.delivery_slot,
       }));
+      setPaymentMethod("ONLINE");
       clearCart();
     } catch (requestError) {
       setError(
+        requestError?.message ||
         requestError?.response?.data?.error ||
           requestError?.response?.data?.message ||
           "Failed to place order."
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const submitPostOrderFeedback = async () => {
+    setFeedbackError("");
+    setFeedbackMessage("");
+
+    if (!feedbackForm.title.trim() || !feedbackForm.message.trim()) {
+      setFeedbackError("Please add a feedback title and message.");
+      return;
+    }
+
+    try {
+      setFeedbackLoading(true);
+      await createFeedback({
+        target_type: "shop",
+        product_id: null,
+        rating: Number(feedbackForm.rating),
+        title: feedbackForm.title.trim(),
+        message: feedbackForm.message.trim(),
+      });
+      setFeedbackMessage("Thank you. Your feedback was shared successfully.");
+      setFeedbackForm(initialFeedbackFormState);
+    } catch (requestError) {
+      setFeedbackError(
+        requestError?.response?.data?.error ||
+          requestError?.response?.data?.message ||
+          "We could not save your feedback right now."
+      );
+    } finally {
+      setFeedbackLoading(false);
     }
   };
 
@@ -500,6 +650,37 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
           font-size: 0.88rem;
           line-height: 1.6;
         }
+        .payment-method-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.9rem;
+          margin-bottom: 1.2rem;
+        }
+        .payment-method-card {
+          text-align: left;
+          border-radius: 20px;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.05);
+          padding: 1rem;
+          color: #fff;
+          cursor: pointer;
+          transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+        .payment-method-card.active {
+          background: linear-gradient(135deg, rgba(217, 73, 105, 0.26), rgba(142, 28, 54, 0.34));
+          border-color: rgba(244, 114, 182, 0.52);
+          transform: translateY(-2px);
+        }
+        .payment-method-card strong {
+          display: block;
+          margin-bottom: 0.35rem;
+        }
+        .payment-method-card span {
+          display: block;
+          color: rgba(255,255,255,0.68);
+          font-size: 0.84rem;
+          line-height: 1.5;
+        }
         .checkout-feedback {
           margin-top: 1rem;
           border-radius: 16px;
@@ -603,7 +784,7 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
           z-index: 1000;
         }
         .success-card {
-          width: min(480px, calc(100vw - 2rem));
+          width: min(620px, calc(100vw - 2rem));
           padding: 2rem;
           border-radius: 24px;
           background: rgba(60, 5, 20, 0.92);
@@ -646,11 +827,116 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
           color: rgba(255,255,255,0.85);
           border: 1px solid rgba(255,255,255,0.14);
         }
+        .post-feedback-panel {
+          margin-top: 1.4rem;
+          padding: 1.25rem;
+          border-radius: 20px;
+          text-align: left;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+        }
+        .post-feedback-title {
+          margin: 0 0 0.35rem;
+          color: #fff;
+          font-size: 1.08rem;
+          font-weight: 700;
+        }
+        .post-feedback-copy {
+          margin: 0 0 1rem;
+          color: rgba(255,255,255,0.68);
+          line-height: 1.6;
+          font-size: 0.9rem;
+        }
+        .post-feedback-rating {
+          display: flex;
+          gap: 0.55rem;
+          flex-wrap: wrap;
+          margin-bottom: 0.95rem;
+        }
+        .post-feedback-pill {
+          border: 1px solid rgba(255,255,255,0.14);
+          background: rgba(255,255,255,0.05);
+          color: rgba(255,255,255,0.82);
+          padding: 0.6rem 0.9rem;
+          border-radius: 999px;
+          cursor: pointer;
+          font: inherit;
+          transition: transform 0.18s, background 0.18s, border-color 0.18s;
+        }
+        .post-feedback-pill:hover {
+          transform: translateY(-1px);
+          background: rgba(255,255,255,0.09);
+        }
+        .post-feedback-pill.active {
+          color: #fff;
+          border-color: rgba(232,83,109,0.7);
+          background: linear-gradient(135deg, #d94969, #8e1c36);
+        }
+        .post-feedback-field {
+          width: 100%;
+          margin-bottom: 0.85rem;
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.05);
+          color: #fff;
+          padding: 0.95rem 1rem;
+          font: inherit;
+          outline: none;
+        }
+        .post-feedback-field::placeholder {
+          color: rgba(255,255,255,0.42);
+        }
+        .post-feedback-field:focus {
+          border-color: rgba(232,83,109,0.5);
+          box-shadow: 0 0 0 3px rgba(217,73,105,0.14);
+        }
+        .post-feedback-field.textarea {
+          min-height: 120px;
+          resize: vertical;
+        }
+        .post-feedback-submit {
+          width: 100%;
+          border: none;
+          border-radius: 999px;
+          padding: 0.92rem 1.1rem;
+          background: linear-gradient(135deg, #d94969, #8e1c36);
+          color: #fff;
+          font: inherit;
+          font-size: 0.86rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          cursor: pointer;
+        }
+        .post-feedback-submit:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+        .post-feedback-status {
+          margin-top: 0.8rem;
+          padding: 0.8rem 0.9rem;
+          border-radius: 14px;
+          font-size: 0.88rem;
+          line-height: 1.5;
+        }
+        .post-feedback-status.success {
+          background: rgba(34,197,94,0.12);
+          border: 1px solid rgba(34,197,94,0.24);
+          color: #bbf7d0;
+        }
+        .post-feedback-status.error {
+          background: rgba(239,68,68,0.12);
+          border: 1px solid rgba(239,68,68,0.24);
+          color: #fecaca;
+        }
         @media (max-width: 960px) {
           .checkout-shell {
             grid-template-columns: 1fr;
           }
           .slot-grid {
+            grid-template-columns: 1fr;
+          }
+          .payment-method-grid {
             grid-template-columns: 1fr;
           }
         }
@@ -661,6 +947,9 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
           .checkout-card {
             padding: 1.2rem;
             border-radius: 22px;
+          }
+          .success-card {
+            padding: 1.2rem;
           }
           .checkout-grid {
             grid-template-columns: 1fr;
@@ -726,6 +1015,26 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
               />
             </div>
 
+            <h2 className="checkout-subtitle">Choose a payment method</h2>
+            <div className="payment-method-grid">
+              <button
+                type="button"
+                className={`payment-method-card ${paymentMethod === "ONLINE" ? "active" : ""}`}
+                onClick={() => setPaymentMethod("ONLINE")}
+              >
+                <strong>Pay Online</strong>
+                <span>Secure Razorpay checkout with UPI, cards, net banking, and wallets.</span>
+              </button>
+              <button
+                type="button"
+                className={`payment-method-card ${paymentMethod === "COD" ? "active" : ""}`}
+                onClick={() => setPaymentMethod("COD")}
+              >
+                <strong>Cash On Delivery</strong>
+                <span>Place the order now and pay when the bouquet reaches you.</span>
+              </button>
+            </div>
+
             <h2 className="checkout-subtitle">Choose a delivery window</h2>
             <p className="delivery-note">
               {scheduleLoading
@@ -771,11 +1080,13 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
             </div>
 
             <button className="checkout-button" type="button" onClick={placeOrder} disabled={loading || scheduleLoading}>
-              {loading ? "Placing Order..." : "Place Order (COD)"}
+              {loading ? (paymentMethod === "ONLINE" ? "Starting Payment..." : "Placing Order...") : paymentMethod === "ONLINE" ? "Pay & Place Order" : "Place Order (COD)"}
             </button>
 
             <p className="checkout-note">
-              Online payment is disabled for now. Orders are placed as cash on delivery only, with transparent delivery updates in My Orders.
+              {paymentMethod === "ONLINE"
+                ? "Your order is created only after Razorpay confirms the payment. You will see live delivery updates in My Orders right after checkout."
+                : "Cash on delivery stays available, and your delivery updates will still appear in My Orders after you place the order."}
             </p>
 
             {error ? <div className="checkout-feedback error">{error}</div> : null}
@@ -791,7 +1102,7 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
               <>
                 <div className="summary-list">
                   {cart.map((item) => (
-                    <SummaryRow key={item.id} item={item} />
+                    <SummaryRow key={item.cartKey || `${item.id}-${item.purchaseType || "flower"}`} item={item} />
                   ))}
                 </div>
                 <div className="summary-line">
@@ -857,6 +1168,47 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
                 <button className="success-link secondary" type="button" onClick={() => setSuccess(false)}>
                   Continue Shopping
                 </button>
+              </div>
+              <div className="post-feedback-panel">
+                <p className="post-feedback-title">Tell us how your order experience felt</p>
+                <p className="post-feedback-copy">
+                  If you have a minute, share a quick review while the details are still fresh.
+                </p>
+                <div className="post-feedback-rating">
+                  {[1, 2, 3, 4, 5].map((rating) => (
+                    <button
+                      key={rating}
+                      type="button"
+                      className={`post-feedback-pill ${Number(feedbackForm.rating) === rating ? "active" : ""}`}
+                      onClick={() => setFeedbackForm((current) => ({ ...current, rating: String(rating) }))}
+                    >
+                      {rating} Star{rating !== 1 ? "s" : ""}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  className="post-feedback-field"
+                  type="text"
+                  placeholder="Feedback title"
+                  value={feedbackForm.title}
+                  onChange={(event) => setFeedbackForm((current) => ({ ...current, title: event.target.value }))}
+                />
+                <textarea
+                  className="post-feedback-field textarea"
+                  placeholder="Write your feedback here..."
+                  value={feedbackForm.message}
+                  onChange={(event) => setFeedbackForm((current) => ({ ...current, message: event.target.value }))}
+                />
+                <button
+                  className="post-feedback-submit"
+                  type="button"
+                  onClick={submitPostOrderFeedback}
+                  disabled={feedbackLoading}
+                >
+                  {feedbackLoading ? "Sending Feedback..." : "Submit Feedback"}
+                </button>
+                {feedbackMessage ? <div className="post-feedback-status success">{feedbackMessage}</div> : null}
+                {feedbackError ? <div className="post-feedback-status error">{feedbackError}</div> : null}
               </div>
             </motion.div>
           </motion.div>

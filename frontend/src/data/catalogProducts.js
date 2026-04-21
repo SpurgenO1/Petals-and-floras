@@ -52,6 +52,14 @@ const CATEGORY_DEFAULTS = {
   "Cut Foliages": null,
   "Hybrid Chrysanthamums": null,
   "Bouquet & Car Deco Materials": null,
+  "Real Flower Bouquets": null,
+  "Artificial Flower Bouquets": null,
+  "Chocolate Bouquets": null,
+  "Jewelry Bouquets": null,
+  "Gift Bouquets": null,
+  "Handmade Bouquets": null,
+  "Occasion Bouquets": null,
+  "Innovative Bouquets": null,
 };
 
 export const PRODUCT_SPECIFIC_IMAGES = {
@@ -109,7 +117,15 @@ const catalogGroupsItems = {
   Fillers: ["Blue Daisy", "White Daisy", "Yellow Daisy", "Gypsophila", "Alstroemeria", "Yellow Button"],
   "Cut Foliages": ["Mayers", "Asparagus", "Anthurium Leaves", "Tree Fern", "Fish Leaves", "Song of Jamaica", "Song of India", "Kolkata Asparagas", "Kamini", "Spider", "Dracena", "Ivy Leaves", "Silver Dollar", "Areca/Market Palm", "Golden Rod", "Cypres", "Monstera", "Leather Leaves", "Xanadu", "Limonium", "Ming Fern", "Money Plant", "BOP Leaves", "Podo Carpus", "Ribbon Grass"],
   "Hybrid Chrysanthamums": ["Double Colour", "Dark Pink Spray", "Light Pink Spray", "White Spray", "Red Spray", "Orange Spray", "Yellow Spray", "Yellow Button", "White Button", "Green Button", "Spider", "Double colour"],
-  "Bouquet & Car Deco Materials": ["Bridal Handle", "Bouquet Sheet", "Dry Flowers", "Square Petite", "Jute Wrapper", "Auto Deco Round", "Auto Deco Square", "Foam Box", "Car deco materials"]
+  "Bouquet & Car Deco Materials": ["Bridal Handle", "Bouquet Sheet", "Dry Flowers", "Square Petite", "Jute Wrapper", "Auto Deco Round", "Auto Deco Square", "Foam Box", "Car deco materials"],
+  "Real Flower Bouquets": ["Rose Bouquet", "Lily Bouquet", "Orchid Bouquet", "Tulip Bouquet", "Mixed Flower Bouquet", "Sunflower Bouquet"],
+  "Artificial Flower Bouquets": ["Silk Flower Bouquet", "Foam Flower Bouquet", "Paper Flower Bouquet", "Crochet Flower Bouquet", "Wooden Flower Bouquet"],
+  "Chocolate Bouquets": ["Chocolate Bouquet", "Ferrero Rocher Bouquet", "Dairy Milk Bouquet", "Kinder Chocolate Bouquet", "Chocolate Flower Combo Bouquet"],
+  "Jewelry Bouquets": ["Earring Bouquet", "Bracelet Bouquet", "Ring Bouquet", "Jewelry Combo Bouquet"],
+  "Gift Bouquets": ["Teddy Bear Bouquet", "Money Bouquet", "Snack Bouquet", "Cosmetic Bouquet", "Stationery Bouquet"],
+  "Handmade Bouquets": ["Origami Bouquet", "Photo Memory Bouquet", "Message Bouquet", "Fabric Bouquet"],
+  "Occasion Bouquets": ["Birthday Bouquet", "Wedding Bouquet", "Anniversary Bouquet", "Graduation Bouquet", "Baby Shower Bouquet"],
+  "Innovative Bouquets": ["LED Light Bouquet", "Balloon Bouquet", "Perfume Bouquet", "Cupcake Bouquet", "Fruit Bouquet", "Book Bouquet", "Personalized Name Bouquet"]
 };
 
 Object.entries(catalogGroupsItems).forEach(([category, items]) => {
@@ -261,6 +277,63 @@ const catalogGroups = {
     "Foam Box",
     "Car deco materials",
   ],
+  "Real Flower Bouquets": [
+    "Rose Bouquet",
+    "Lily Bouquet",
+    "Orchid Bouquet",
+    "Tulip Bouquet",
+    "Mixed Flower Bouquet",
+    "Sunflower Bouquet",
+  ],
+  "Artificial Flower Bouquets": [
+    "Silk Flower Bouquet",
+    "Foam Flower Bouquet",
+    "Paper Flower Bouquet",
+    "Crochet Flower Bouquet",
+    "Wooden Flower Bouquet",
+  ],
+  "Chocolate Bouquets": [
+    "Chocolate Bouquet",
+    "Ferrero Rocher Bouquet",
+    "Dairy Milk Bouquet",
+    "Kinder Chocolate Bouquet",
+    "Chocolate Flower Combo Bouquet",
+  ],
+  "Jewelry Bouquets": [
+    "Earring Bouquet",
+    "Bracelet Bouquet",
+    "Ring Bouquet",
+    "Jewelry Combo Bouquet",
+  ],
+  "Gift Bouquets": [
+    "Teddy Bear Bouquet",
+    "Money Bouquet",
+    "Snack Bouquet",
+    "Cosmetic Bouquet",
+    "Stationery Bouquet",
+  ],
+  "Handmade Bouquets": [
+    "Origami Bouquet",
+    "Photo Memory Bouquet",
+    "Message Bouquet",
+    "Fabric Bouquet",
+  ],
+  "Occasion Bouquets": [
+    "Birthday Bouquet",
+    "Wedding Bouquet",
+    "Anniversary Bouquet",
+    "Graduation Bouquet",
+    "Baby Shower Bouquet",
+  ],
+  "Innovative Bouquets": [
+    "LED Light Bouquet",
+    "Balloon Bouquet",
+    "Perfume Bouquet",
+    "Cupcake Bouquet",
+    "Fruit Bouquet",
+    "Book Bouquet",
+    "Personalized Name Bouquet",
+  ],
 };
 
 const CATEGORY_IMAGES = {
@@ -273,7 +346,16 @@ const CATEGORY_IMAGES = {
   "Orchids": null,
   "Fillers": null,
   "Cut Foliages": null,
-  "Hybrid Chrysanthamums": null
+  "Hybrid Chrysanthamums": null,
+  "Bouquet & Car Deco Materials": null,
+  "Real Flower Bouquets": null,
+  "Artificial Flower Bouquets": null,
+  "Chocolate Bouquets": null,
+  "Jewelry Bouquets": null,
+  "Gift Bouquets": null,
+  "Handmade Bouquets": null,
+  "Occasion Bouquets": null,
+  "Innovative Bouquets": null,
 };
 
 export const catalogProducts = Object.entries(catalogGroups).flatMap(([category, names], groupIndex) =>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { createFeedback, getFeedback, getProducts } from "../services/api";
+import { createFeedback, getFeedback } from "../services/api";
 
 function FloatingPetal({ style }) {
   return (
@@ -113,8 +113,6 @@ function RatingButton({ active, label, onClick }) {
 }
 
 const initialForm = {
-  targetType: "shop",
-  productId: "",
   rating: "5",
   title: "",
   message: "",
@@ -122,7 +120,6 @@ const initialForm = {
 
 export default function Contact({ authUser = null }) {
   const [form, setForm] = useState(initialForm);
-  const [products, setProducts] = useState([]);
   const [recentFeedback, setRecentFeedback] = useState([]);
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -138,25 +135,13 @@ export default function Contact({ authUser = null }) {
 
   const infoCards = [
     { icon: "Phone", label: "Phone / WhatsApp", value: "+91 80558 95353", href: "tel:+918055895353", delay: 0 },
-    { icon: "Mail", label: "Email", value: "support@petalsandfloras.com", href: "mailto:support@petalsandfloras.com", delay: 0.1 },
+    { icon: "Mail", label: "Email", value: "petalsandflora@gmail.com", href: "mailto:petalsandflora@gmail.com", delay: 0.1 },
     { icon: "City", label: "City", value: "Chennai, Tamil Nadu", href: null, delay: 0.2 },
     { icon: "Chat", label: "WhatsApp", value: "Chat with us instantly", href: "https://wa.me/918055895353", delay: 0.3 },
   ];
 
   useEffect(() => {
     let mounted = true;
-
-    getProducts()
-      .then((response) => {
-        if (mounted) {
-          setProducts(Array.isArray(response.data) ? response.data : []);
-        }
-      })
-      .catch(() => {
-        if (mounted) {
-          setProducts([]);
-        }
-      });
 
     getFeedback()
       .then((response) => {
@@ -192,17 +177,12 @@ export default function Contact({ authUser = null }) {
       return;
     }
 
-    if (form.targetType === "flower" && !form.productId) {
-      setError("Please choose a flower product for flower feedback.");
-      return;
-    }
-
     setLoading(true);
 
     try {
       const response = await createFeedback({
-        target_type: form.targetType,
-        product_id: form.targetType === "flower" ? Number(form.productId) : null,
+        target_type: "shop",
+        product_id: null,
         rating: Number(form.rating),
         title: form.title,
         message: form.message,
@@ -323,13 +303,20 @@ export default function Contact({ authUser = null }) {
           gap: 1rem;
         }
         .cn-info-card {
-          padding: 1.5rem 1.2rem;
+          padding: 1.4rem 1.15rem 1.3rem;
           display: flex;
           flex-direction: column;
           align-items: center;
           text-align: center;
-          gap: 0.6rem;
+          gap: 0.8rem;
           transform: translateZ(20px);
+        }
+        .cn-info-body {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.45rem;
         }
         .cn-info-icon {
           width: 48px;
@@ -346,24 +333,32 @@ export default function Contact({ authUser = null }) {
           color: #fff;
         }
         .cn-info-label {
-          font-size: 0.68rem;
-          letter-spacing: 0.15em;
+          font-family: 'Jost', sans-serif;
+          font-size: 0.7rem;
+          font-weight: 600;
+          letter-spacing: 0.18em;
           text-transform: uppercase;
-          color: rgba(255,255,255,0.4);
+          color: rgba(255,255,255,0.46);
         }
         .cn-info-value {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 0.98rem;
-          font-weight: 600;
-          color: #fff;
-          line-height: 1.3;
+          font-family: 'Jost', sans-serif;
+          font-size: clamp(0.84rem, 1.02vw, 0.98rem);
+          font-weight: 500;
+          letter-spacing: 0.01em;
+          color: rgba(255,255,255,0.96);
+          line-height: 1.5;
+          text-wrap: balance;
+          overflow-wrap: anywhere;
         }
         .cn-info-link {
           text-decoration: none;
-          color: var(--rose-light);
-          transition: color 0.2s;
+          color: #f6ced8;
+          transition: color 0.2s, text-shadow 0.2s;
         }
-        .cn-info-link:hover { color: #fff; }
+        .cn-info-link:hover {
+          color: #fff;
+          text-shadow: 0 0 18px rgba(232,83,109,0.28);
+        }
         .cn-layout {
           position: relative;
           z-index: 10;
@@ -373,13 +368,27 @@ export default function Contact({ authUser = null }) {
           max-width: 900px;
           margin: 0 auto;
         }
-        .cn-form-panel { padding: 2rem; }
+        .cn-form-panel { padding: 2.15rem; }
+        .cn-form-intro {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.45rem;
+          padding: 0.38rem 0.8rem;
+          margin-bottom: 0.9rem;
+          border-radius: 999px;
+          background: rgba(232,83,109,0.12);
+          border: 1px solid rgba(232,83,109,0.22);
+          color: #ffd7df;
+          font-size: 0.76rem;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
         .cn-panel-title, .cn-hours-title {
           font-family: 'Cormorant Garamond', serif;
-          font-size: 1.3rem;
+          font-size: 1.5rem;
           font-weight: 600;
           color: #fff;
-          margin-bottom: 1rem;
+          margin-bottom: 0.85rem;
           display: flex;
           align-items: center;
           gap: 0.5rem;
@@ -391,10 +400,42 @@ export default function Contact({ authUser = null }) {
           background: linear-gradient(90deg, rgba(255,255,255,0.15), transparent);
         }
         .cn-helper {
-          margin: 0 0 1rem;
-          color: rgba(255,255,255,0.58);
-          font-size: 0.84rem;
-          line-height: 1.6;
+          margin: 0 0 1.35rem;
+          color: rgba(255,255,255,0.68);
+          font-size: 0.92rem;
+          line-height: 1.7;
+          max-width: 32rem;
+        }
+        .cn-rating-block {
+          padding: 1rem 1rem 1.05rem;
+          margin-bottom: 1rem;
+          border-radius: 18px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+          border: 1px solid rgba(255,255,255,0.08);
+        }
+        .cn-rating-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          gap: 0.8rem;
+          margin-bottom: 0.85rem;
+        }
+        .cn-rating-title {
+          color: #fff;
+          font-size: 0.98rem;
+          font-weight: 600;
+        }
+        .cn-rating-copy {
+          color: rgba(255,255,255,0.52);
+          font-size: 0.8rem;
+          line-height: 1.5;
+        }
+        .cn-rating-current {
+          color: var(--rose-light);
+          font-size: 0.82rem;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          white-space: nowrap;
         }
         .cn-select {
           width: 100%;
@@ -413,17 +454,20 @@ export default function Contact({ authUser = null }) {
           display: flex;
           align-items: flex-start;
           gap: 0.7rem;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 14px;
-          padding: 0.9rem 1rem 0.6rem;
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.11);
+          border-radius: 18px;
+          padding: 1rem 1.05rem 0.72rem;
           margin-bottom: 1rem;
-          transition: border-color 0.25s, background 0.25s;
+          transition: border-color 0.25s, background 0.25s, box-shadow 0.25s, transform 0.25s;
           overflow: hidden;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
         }
         .cn-fi-focused {
           border-color: rgba(232,83,109,0.6);
-          background: rgba(192,53,78,0.1);
+          background: rgba(192,53,78,0.11);
+          box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+          transform: translateY(-1px);
         }
         .cn-fi-icon { font-size: 1rem; flex-shrink: 0; margin-top: 8px; color: rgba(255,255,255,0.7); }
         .cn-fi-inner { flex: 1; position: relative; }
@@ -452,7 +496,8 @@ export default function Contact({ authUser = null }) {
           outline: none;
           color: #fff;
           font-family: 'Jost', sans-serif;
-          font-size: 0.9rem;
+          font-size: 0.95rem;
+          line-height: 1.6;
           padding-top: 6px;
           caret-color: var(--rose-petal);
           resize: none;
@@ -471,36 +516,51 @@ export default function Contact({ authUser = null }) {
           display: flex;
           gap: 0.6rem;
           flex-wrap: wrap;
-          margin-bottom: 1rem;
+          margin-bottom: 0;
         }
         .cn-rating-pill {
           border: 1px solid rgba(255,255,255,0.13);
           background: rgba(255,255,255,0.05);
-          color: rgba(255,255,255,0.72);
-          padding: 0.55rem 0.9rem;
+          color: rgba(255,255,255,0.8);
+          padding: 0.7rem 1rem;
           border-radius: 999px;
           cursor: pointer;
           font: inherit;
+          font-weight: 600;
+          transition: transform 0.18s, border-color 0.18s, background 0.18s, color 0.18s;
+        }
+        .cn-rating-pill:hover {
+          transform: translateY(-1px);
+          border-color: rgba(232,83,109,0.4);
+          background: rgba(255,255,255,0.08);
+          color: #fff;
         }
         .cn-rating-pill.active {
           color: #fff;
           border-color: rgba(232,83,109,0.7);
           background: linear-gradient(135deg, var(--rose-mid), var(--rose-deep));
+          box-shadow: 0 10px 24px rgba(192,53,78,0.28);
         }
         .cn-submit {
           width: 100%;
-          padding: 0.9rem;
+          padding: 1rem 1.1rem;
           border-radius: 50px;
           border: none;
           background: linear-gradient(135deg, var(--rose-mid), var(--rose-deep));
           color: #fff;
           font-family: 'Jost', sans-serif;
-          font-size: 0.88rem;
-          font-weight: 500;
-          letter-spacing: 0.1em;
+          font-size: 0.92rem;
+          font-weight: 700;
+          letter-spacing: 0.12em;
           text-transform: uppercase;
           cursor: pointer;
-          margin-top: 0.5rem;
+          margin-top: 0.75rem;
+          box-shadow: 0 16px 34px rgba(123,26,46,0.32);
+          transition: transform 0.22s, box-shadow 0.22s, opacity 0.22s;
+        }
+        .cn-submit:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 20px 40px rgba(123,26,46,0.38);
         }
         .cn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
         .cn-toast, .cn-error {
@@ -609,6 +669,11 @@ export default function Contact({ authUser = null }) {
           .cn-cards-grid { grid-template-columns: 1fr; }
           .cn-form-panel, .cn-side-panel { padding: 1.2rem; }
           .cn-info-card { padding: 1.1rem 1rem; }
+          .cn-info-value { font-size: 0.94rem; }
+          .cn-panel-title { font-size: 1.3rem; }
+          .cn-helper { font-size: 0.86rem; margin-bottom: 1rem; }
+          .cn-rating-head { flex-direction: column; align-items: flex-start; }
+          .cn-rating-pill { flex: 1 1 calc(50% - 0.35rem); justify-content: center; text-align: center; }
           .cn-feedback-grid { grid-template-columns: 1fr; }
         }
       `}</style>
@@ -644,36 +709,30 @@ export default function Contact({ authUser = null }) {
           >
             <TiltCard>
               <div className="cn-glass cn-form-panel">
+                <div className="cn-form-intro">Quick and easy</div>
                 <p className="cn-panel-title">Submit Feedback</p>
                 <p className="cn-helper">
-                  Login is required so each feedback stays linked to the right customer account in the shop admin.
+                  Share how your experience felt in a few words. Your feedback helps us improve every bouquet, order, and delivery.
                 </p>
 
-                <select className="cn-select" name="targetType" value={form.targetType} onChange={handleChange}>
-                  <option value="shop">Feedback for the shop</option>
-                  <option value="flower">Feedback for a flower</option>
-                </select>
-
-                {form.targetType === "flower" && (
-                  <select className="cn-select" name="productId" value={form.productId} onChange={handleChange}>
-                    <option value="">Select a flower product</option>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.name}
-                      </option>
+                <div className="cn-rating-block">
+                  <div className="cn-rating-head">
+                    <div>
+                      <p className="cn-rating-title">How was your experience?</p>
+                      <p className="cn-rating-copy">Pick a rating that matches your order and service experience.</p>
+                    </div>
+                    <span className="cn-rating-current">{form.rating} / 5 selected</span>
+                  </div>
+                  <div className="cn-rating-row">
+                    {[1, 2, 3, 4, 5].map((rating) => (
+                      <RatingButton
+                        key={rating}
+                        label={`${rating} Star${rating !== 1 ? "s" : ""}`}
+                        active={Number(form.rating) === rating}
+                        onClick={() => setForm((current) => ({ ...current, rating: String(rating) }))}
+                      />
                     ))}
-                  </select>
-                )}
-
-                <div className="cn-rating-row">
-                  {[1, 2, 3, 4, 5].map((rating) => (
-                    <RatingButton
-                      key={rating}
-                      label={`${rating} Star${rating !== 1 ? "s" : ""}`}
-                      active={Number(form.rating) === rating}
-                      onClick={() => setForm((current) => ({ ...current, rating: String(rating) }))}
-                    />
-                  ))}
+                  </div>
                 </div>
 
                 <FloatInput label="Feedback Title" name="title" value={form.title} onChange={handleChange} icon="Title" />
@@ -711,8 +770,7 @@ export default function Contact({ authUser = null }) {
               <div className="cn-glass cn-side-panel" style={{ padding: "1.8rem" }}>
                 <p className="cn-hours-title">Business Hours</p>
                 {[
-                  { day: "Monday - Friday", time: "8:00 AM - 8:00 PM", open: true },
-                  { day: "Saturday", time: "8:00 AM - 9:00 PM", open: true },
+                  { day: "Monday - Saturday", time: "8:00 AM - 8:00 PM", open: true },
                   { day: "Sunday", time: "9:00 AM - 6:00 PM", open: true },
                   { day: "Public Holidays", time: "Call ahead", open: false },
                 ].map((row) => (
@@ -726,7 +784,7 @@ export default function Contact({ authUser = null }) {
                   <p className="cn-hours-title" style={{ marginBottom: "0.8rem" }}>Find Us Online</p>
                   <div className="cn-socials">
                     <a href="https://wa.me/918055895353" className="cn-social-btn" target="_blank" rel="noreferrer">WhatsApp</a>
-                    <a href="mailto:support@petalsandfloras.com" className="cn-social-btn">Email</a>
+                    <a href="mailto:petalsandflora@gmail.com" className="cn-social-btn">Email</a>
                     <a href="tel:+918055895353" className="cn-social-btn">Call</a>
                   </div>
                 </div>

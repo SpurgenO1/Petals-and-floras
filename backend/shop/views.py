@@ -448,6 +448,121 @@ def build_mongo_order(payload, order_obj):
     }
 
 
+def prepare_order_payload(validated_data):
+    payload = dict(validated_data)
+    delivery_date = payload.get("delivery_date")
+    same_day_delivery = bool(payload.get("same_day_delivery"))
+
+    payload["status"] = payload.get("status", Order.STATUS_PENDING)
+    payload["total_amount"] = calculate_total(payload.get("items", []))
+    payload["payment_method"] = payload.get("payment_method", "COD").upper()
+    payload["payment_status"] = payload.get("payment_status", "UNPAID").upper()
+    payload["delivery_status"] = Order.DELIVERY_STATUS_ORDER_PLACED
+    payload["gift_message"] = payload.get("gift_message", "").strip()
+    payload["occasion"] = payload.get("occasion", "").strip()
+    payload["same_day_delivery"] = same_day_delivery or delivery_date == get_business_today()
+
+    if payload.get("payment_id"):
+        payload["status"] = Order.STATUS_PAID
+        payload["payment_method"] = "ONLINE"
+        payload["payment_status"] = "PAID"
+
+    return payload
+
+
+def persist_order(user, payload):
+    payment_id = sanitize_string(payload.get("payment_id", ""), 100)
+    if payment_id and Order.objects.filter(payment_id=payment_id).exists():
+        return None, Response(
+            {"error": "This payment has already been used for an order."},
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    try:
+        order_obj = Order.objects.create(
+            user=user,
+            name=sanitize_string(payload["name"], 100),
+            phone=sanitize_string(payload["phone"], 15),
+            address=sanitize_string(payload["address"], 500),
+            city=sanitize_string(payload.get("city", ""), 50),
+            pincode=sanitize_string(payload.get("pincode", ""), 10),
+            items=payload["items"],
+            status=payload["status"],
+            total_amount=payload["total_amount"],
+            payment_order_id=sanitize_string(payload.get("payment_order_id", ""), 100),
+            payment_id=payment_id,
+            delivery_date=payload["delivery_date"],
+            delivery_slot=payload["delivery_slot"],
+            same_day_delivery=payload["same_day_delivery"],
+            gift_message=sanitize_string(payload.get("gift_message", ""), 300),
+            occasion=sanitize_string(payload.get("occasion", ""), 30),
+            delivery_status=payload["delivery_status"],
+        )
+    except Exception:
+        return None, Response({"error": "Order creation failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    append_tracking_event(
+        order_obj,
+        order_obj.delivery_status,
+        description=build_tracking_description(order_obj.delivery_status, order_obj),
+    )
+
+    mongo_order = build_mongo_order(payload, order_obj)
+    mongo_order_id = None
+    mongo_sync_warning = ""
+
+    try:
+        orders = get_orders_collection()
+        insert_result = orders.insert_one(mongo_order)
+        mongo_order_id = str(insert_result.inserted_id)
+        order_obj.mongo_order_id = mongo_order_id
+        order_obj.save(update_fields=["mongo_order_id"])
+    except PyMongoError:
+        mongo_sync_warning = "Order saved locally, but MongoDB sync failed."
+
+    return (
+        {
+            "message": "Order placed successfully",
+            "order_id": mongo_order_id,
+            "admin_order_id": order_obj.id,
+            "status": order_obj.status,
+            "delivery_status": order_obj.delivery_status,
+            "delivery_status_label": get_delivery_status_label(order_obj.delivery_status),
+            "delivery_date": order_obj.delivery_date,
+            "delivery_slot": order_obj.delivery_slot,
+            "delivery_slot_label": get_slot_label(order_obj.delivery_slot),
+            "payment_method": mongo_order["payment"]["method"],
+            "payment_status": mongo_order["payment"]["status"],
+            "warning": mongo_sync_warning,
+        },
+        None,
+    )
+
+
+def verify_razorpay_payment_signature(payment_order_id, payment_id, payment_signature):
+    if not payment_order_id or not payment_id or not payment_signature:
+        return "Missing payment verification details."
+
+    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+        return "Payment service not configured. Contact support."
+
+    try:
+        client = razorpay.Client(
+            auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
+        )
+        client.utility.verify_payment_signature(
+            {
+                "razorpay_order_id": payment_order_id,
+                "razorpay_payment_id": payment_id,
+                "razorpay_signature": payment_signature,
+            }
+        )
+    except Exception:
+        return "Payment verification failed."
+
+    return None
+
+
 @api_view(["GET"])
 @throttle_classes([ProductRateThrottle])
 def get_products(request):
@@ -1129,7 +1244,7 @@ def create_order(request):
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    payload = serializer.validated_data
+    payload = prepare_order_payload(serializer.validated_data)
     delivery_date = payload.get("delivery_date")
     delivery_slot = payload.get("delivery_slot", "")
     same_day_delivery = bool(payload.get("same_day_delivery"))
@@ -1141,79 +1256,17 @@ def create_order(request):
     if delivery_error:
         return Response({"error": delivery_error}, status=status.HTTP_400_BAD_REQUEST)
 
-    payload["status"] = payload.get("status", Order.STATUS_PENDING)
-    payload["total_amount"] = calculate_total(payload.get("items", []))
-    payload["payment_method"] = payload.get("payment_method", "COD").upper()
-    payload["payment_status"] = payload.get("payment_status", "UNPAID").upper()
-    payload["delivery_status"] = Order.DELIVERY_STATUS_ORDER_PLACED
-    payload["gift_message"] = payload.get("gift_message", "").strip()
-    payload["occasion"] = payload.get("occasion", "").strip()
-    payload["same_day_delivery"] = same_day_delivery or delivery_date == get_business_today()
-
-    if payload.get("payment_id"):
-        payload["status"] = Order.STATUS_PAID
-        payload["payment_method"] = "ONLINE"
-        payload["payment_status"] = "PAID"
-
-    try:
-        order_obj = Order.objects.create(
-            user=user,
-            name=sanitize_string(payload["name"], 100),
-            phone=sanitize_string(payload["phone"], 15),
-            address=sanitize_string(payload["address"], 500),
-            city=sanitize_string(payload.get("city", ""), 50),
-            pincode=sanitize_string(payload.get("pincode", ""), 10),
-            items=payload["items"],
-            status=payload["status"],
-            total_amount=payload["total_amount"],
-            payment_order_id=sanitize_string(payload.get("payment_order_id", ""), 100),
-            payment_id=sanitize_string(payload.get("payment_id", ""), 100),
-            delivery_date=payload["delivery_date"],
-            delivery_slot=payload["delivery_slot"],
-            same_day_delivery=payload["same_day_delivery"],
-            gift_message=sanitize_string(payload.get("gift_message", ""), 300),
-            occasion=sanitize_string(payload.get("occasion", ""), 30),
-            delivery_status=payload["delivery_status"],
+    if str(payload.get("payment_method", "")).upper() == "ONLINE" or payload.get("payment_id"):
+        return Response(
+            {"error": "Online payments must be verified before creating the order."},
+            status=status.HTTP_400_BAD_REQUEST,
         )
-    except Exception as e:
-        return Response({"error": "Order creation failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    append_tracking_event(
-        order_obj,
-        order_obj.delivery_status,
-        description=build_tracking_description(order_obj.delivery_status, order_obj),
-    )
+    response_payload, error_response = persist_order(user, payload)
+    if error_response is not None:
+        return error_response
 
-    mongo_order = build_mongo_order(payload, order_obj)
-    mongo_order_id = None
-    mongo_sync_warning = ""
-
-    try:
-        orders = get_orders_collection()
-        insert_result = orders.insert_one(mongo_order)
-        mongo_order_id = str(insert_result.inserted_id)
-        order_obj.mongo_order_id = mongo_order_id
-        order_obj.save(update_fields=["mongo_order_id"])
-    except PyMongoError:
-        mongo_sync_warning = "Order saved locally, but MongoDB sync failed."
-
-    return Response(
-        {
-            "message": "Order placed successfully",
-            "order_id": mongo_order_id,
-            "admin_order_id": order_obj.id,
-            "status": order_obj.status,
-            "delivery_status": order_obj.delivery_status,
-            "delivery_status_label": get_delivery_status_label(order_obj.delivery_status),
-            "delivery_date": order_obj.delivery_date,
-            "delivery_slot": order_obj.delivery_slot,
-            "delivery_slot_label": get_slot_label(order_obj.delivery_slot),
-            "payment_method": mongo_order["payment"]["method"],
-            "payment_status": mongo_order["payment"]["status"],
-            "warning": mongo_sync_warning,
-        },
-        status=status.HTTP_201_CREATED,
-    )
+    return Response(response_payload, status=status.HTTP_201_CREATED)
 
 
 @api_view(["POST"])
@@ -1273,6 +1326,55 @@ def create_payment(request):
             {"error": "Payment processing failed"},
             status=status.HTTP_502_BAD_GATEWAY,
         )
+
+
+@api_view(["POST"])
+@throttle_classes([PaymentRateThrottle])
+def verify_payment(request):
+    user = get_effective_user(request)
+    if user is None:
+        return Response(
+            {"error": "Login required to verify payment"},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    error = validate_order(request.data)
+    if error:
+        return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+
+    serializer = OrderSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    payload = prepare_order_payload(serializer.validated_data)
+    delivery_error = validate_delivery_request(
+        payload.get("delivery_date"),
+        payload.get("delivery_slot", ""),
+        request_same_day=bool(payload.get("same_day_delivery")),
+    )
+    if delivery_error:
+        return Response({"error": delivery_error}, status=status.HTTP_400_BAD_REQUEST)
+
+    payment_method = str(payload.get("payment_method", "")).upper()
+    if payment_method != "ONLINE":
+        return Response(
+            {"error": "Online payment verification requires payment_method to be ONLINE."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    signature_error = verify_razorpay_payment_signature(
+        payload.get("payment_order_id", ""),
+        payload.get("payment_id", ""),
+        payload.get("payment_signature", ""),
+    )
+    if signature_error:
+        return Response({"error": signature_error}, status=status.HTTP_400_BAD_REQUEST)
+
+    response_payload, error_response = persist_order(user, payload)
+    if error_response is not None:
+        return error_response
+
+    return Response(response_payload, status=status.HTTP_201_CREATED)
 
 
 def csrf_failure(request, reason=""):

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import { getOrderHistory } from "../services/api";
 
 const DELIVERY_STAGE_ORDER = [
@@ -41,10 +42,31 @@ const formatDateOnly = (value) => {
   }
 };
 
+function FloatingPetal({ style }) {
+  return (
+    <motion.div
+      style={style}
+      className="orders-petal"
+      animate={{ y: ["0vh", "110vh"], rotate: [0, 360], opacity: [0, 0.7, 0] }}
+      transition={{ duration: style.duration, repeat: Infinity, ease: "linear", delay: style.delay }}
+    />
+  );
+}
+
 export default function Orders({ authUser = null }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const petalsRef = useRef(
+    Array.from({ length: 12 }, () => ({
+      left: `${Math.random() * 100}%`,
+      width: `${12 + Math.random() * 18}px`,
+      height: `${16 + Math.random() * 22}px`,
+      duration: 7 + Math.random() * 9,
+      delay: Math.random() * 10,
+      filter: `hue-rotate(${Math.random() * 30 - 15}deg)`,
+    }))
+  );
 
   useEffect(() => {
     if (!authUser) {
@@ -125,15 +147,43 @@ export default function Orders({ authUser = null }) {
           min-height: 100vh;
           padding: calc(var(--nav-height) + 2rem) 1rem 4rem;
           background:
-            radial-gradient(circle at top, rgba(232, 83, 109, 0.18), transparent 30%),
-            linear-gradient(180deg, #18040d 0%, #260714 100%);
+            radial-gradient(ellipse 80% 60% at 20% 10%, rgba(192,53,78,0.25) 0%, transparent 55%),
+            radial-gradient(ellipse 60% 50% at 80% 85%, rgba(123,26,46,0.3) 0%, transparent 55%),
+            radial-gradient(ellipse 100% 100% at 50% 50%, #0f0208 0%, #050002 100%);
+          position: relative;
+          overflow: hidden;
           color: #fff;
+        }
+        .orders-page::before {
+          content: "";
+          position: fixed;
+          inset: 0;
+          z-index: 0;
+          pointer-events: none;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
+          opacity: 0.5;
+        }
+        .orders-petals-layer {
+          position: fixed;
+          inset: 0;
+          pointer-events: none;
+          z-index: 1;
+        }
+        .orders-petal {
+          position: absolute;
+          top: -60px;
+          background: radial-gradient(ellipse at 40% 30%, #f8b4c0, #c0354e 60%, #7b1a2e);
+          border-radius: 0 80% 0 80%;
+          opacity: 0.55;
+          will-change: transform;
         }
         .orders-shell {
           width: min(1120px, 100%);
           margin: 0 auto;
           display: grid;
           gap: 1.2rem;
+          position: relative;
+          z-index: 10;
         }
         .orders-hero,
         .order-card {
@@ -192,39 +242,119 @@ export default function Orders({ authUser = null }) {
           font-size: 0.88rem;
         }
         .progress-track {
+          position: relative;
           width: 100%;
-          height: 10px;
+          height: 14px;
           border-radius: 999px;
-          background: rgba(255,255,255,0.08);
+          background: linear-gradient(90deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
           overflow: hidden;
-          margin-bottom: 1rem;
+          margin-bottom: 1.25rem;
+          border: 1px solid rgba(255,255,255,0.08);
+          box-shadow: inset 0 1px 10px rgba(0,0,0,0.28);
+        }
+        .progress-track::after {
+          content: "";
+          position: absolute;
+          inset: 1px;
+          border-radius: inherit;
+          background: linear-gradient(180deg, rgba(255,255,255,0.08), transparent);
+          pointer-events: none;
         }
         .progress-fill {
+          position: relative;
           height: 100%;
           border-radius: inherit;
-          background: linear-gradient(90deg, #fb7185, #f59e0b);
+          background: linear-gradient(90deg, #fb7185 0%, #f97316 55%, #facc15 100%);
+          box-shadow: 0 0 22px rgba(249, 115, 22, 0.35);
+          transition: width 0.45s ease;
+        }
+        .progress-fill::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.42) 38%, rgba(255,255,255,0.05) 62%, transparent 100%);
+          transform: translateX(-35%);
+          animation: progressShimmer 2.8s ease-in-out infinite;
+        }
+        .progress-fill::after {
+          content: "";
+          position: absolute;
+          right: 0;
+          top: 50%;
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          transform: translate(35%, -50%);
+          background: radial-gradient(circle, rgba(255,255,255,0.96) 0%, rgba(255,234,175,0.92) 32%, rgba(251,146,60,0.24) 72%, transparent 100%);
+          filter: blur(0.4px);
+          box-shadow: 0 0 20px rgba(251, 146, 60, 0.48);
         }
         .timeline {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 0.8rem;
-          margin-bottom: 1rem;
+          gap: 0.95rem;
+          margin-bottom: 1.1rem;
         }
         .timeline-step {
-          padding: 0.95rem;
-          border-radius: 18px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.08);
+          position: relative;
+          padding: 1.15rem 1rem 1rem;
+          border-radius: 22px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.03));
+          border: 1px solid rgba(255,255,255,0.1);
           color: rgba(255,255,255,0.72);
+          overflow: hidden;
+          transition: transform 0.24s ease, border-color 0.24s ease, background 0.24s ease, box-shadow 0.24s ease;
+        }
+        .timeline-step::before {
+          content: "";
+          position: absolute;
+          top: 0.95rem;
+          left: 1rem;
+          width: 11px;
+          height: 11px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.2);
+          box-shadow: 0 0 0 6px rgba(255,255,255,0.03);
+        }
+        .timeline-step::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent 45%);
+          opacity: 0;
+          transition: opacity 0.24s ease;
         }
         .timeline-step.active {
-          background: linear-gradient(135deg, rgba(217, 73, 105, 0.26), rgba(142, 28, 54, 0.34));
-          border-color: rgba(244, 114, 182, 0.42);
+          background: linear-gradient(145deg, rgba(217, 73, 105, 0.3), rgba(142, 28, 54, 0.36));
+          border-color: rgba(251, 146, 60, 0.45);
           color: #fff;
+          box-shadow: 0 16px 36px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.06);
+        }
+        .timeline-step.active::before {
+          background: linear-gradient(180deg, #fff7ed, #fb923c);
+          box-shadow: 0 0 0 6px rgba(251,146,60,0.14), 0 0 18px rgba(251,146,60,0.4);
+        }
+        .timeline-step:hover {
+          transform: translateY(-3px);
+          border-color: rgba(255,255,255,0.18);
+        }
+        .timeline-step:hover::after,
+        .timeline-step.active::after {
+          opacity: 1;
         }
         .timeline-step strong {
           display: block;
-          margin-bottom: 0.35rem;
+          margin-bottom: 0.45rem;
+          padding-left: 1.1rem;
+          font-size: 1.02rem;
+          text-transform: capitalize;
+        }
+        .timeline-step span {
+          display: block;
+          padding-left: 1.1rem;
+          line-height: 1.65;
+          font-size: 0.94rem;
         }
         .events {
           display: grid;
@@ -247,6 +377,11 @@ export default function Orders({ authUser = null }) {
         .orders-empty {
           color: rgba(255,255,255,0.72);
         }
+        @keyframes progressShimmer {
+          0% { transform: translateX(-38%); opacity: 0.3; }
+          45% { opacity: 0.9; }
+          100% { transform: translateX(118%); opacity: 0.18; }
+        }
         @media (max-width: 860px) {
           .summary-grid,
           .timeline {
@@ -266,10 +401,17 @@ export default function Orders({ authUser = null }) {
           .timeline {
             grid-template-columns: 1fr;
           }
+          .progress-fill::after {
+            width: 18px;
+            height: 18px;
+          }
         }
       `}</style>
 
       <section className="orders-page">
+        <div className="orders-petals-layer">
+          {petalsRef.current.map((style, index) => <FloatingPetal key={index} style={style} />)}
+        </div>
         <div className="orders-shell">
           <div className="orders-hero">
             <h1>My Deliveries</h1>
