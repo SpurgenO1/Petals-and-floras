@@ -77,6 +77,13 @@ def get_feedback_collection():
 
 
 def build_product_document(product):
+    photo_url = ""
+    if getattr(product, "photo", ""):
+        try:
+            photo_url = product.photo.url
+        except ValueError:
+            photo_url = ""
+
     return {
         "django_product_id": product.id,
         "name": product.name,
@@ -85,6 +92,8 @@ def build_product_document(product):
         "bouquet_price": int(product.bouquet_price or product.flower_price or product.price or 0),
         "description": product.description,
         "category": product.category or "Floral",
+        "image": photo_url,
+        "photo_url": photo_url,
         "old_price": None,
         "updated_at": timezone.now(),
     }

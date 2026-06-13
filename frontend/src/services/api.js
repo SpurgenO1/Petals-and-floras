@@ -208,6 +208,11 @@ api.interceptors.request.use(
     const method = String(config.method || "get").toUpperCase();
     config.withCredentials = true;
 
+    if (config.data instanceof FormData && config.headers) {
+      delete config.headers["Content-Type"];
+      delete config.headers["content-type"];
+    }
+
     if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
       const requestBaseUrl = config.baseURL || API_BASE_URL;
       const csrfToken = await ensureCsrfToken(requestBaseUrl);

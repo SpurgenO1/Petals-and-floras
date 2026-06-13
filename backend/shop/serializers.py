@@ -15,6 +15,8 @@ class ProductSerializer(serializers.Serializer):
     old_price = serializers.IntegerField(required=False, allow_null=True, min_value=0, max_value=999999999)
     description = serializers.CharField(max_length=1000)
     category = serializers.CharField(required=False, allow_blank=True, max_length=50)
+    image = serializers.CharField(required=False, allow_blank=True)
+    photo_url = serializers.CharField(required=False, allow_blank=True)
     
     def validate_name(self, value):
         if not value.strip():

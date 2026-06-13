@@ -20,12 +20,14 @@ import {
   updateAdminProduct,
   updateAdminUser,
 } from "../services/api";
+import { catalogProducts, PRODUCT_SPECIFIC_IMAGES } from "../data/catalogProducts";
 
 const ADMIN_REFRESH_INTERVAL_MS = 45000;
 
 const tabs = [
   ["overview", "Overview"],
   ["products", "Products"],
+  ["create-product", "Create Product"],
   ["orders", "Orders"],
   ["history", "Order History"],
   ["feedback", "Feedback"],
@@ -52,10 +54,61 @@ const fmtMoney = (amount) =>
 const fmtDate = (value) => (value ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "-");
 const pct = (value, total) => (total ? Math.round((value / total) * 100) : 0);
 const clampWidth = (value, total) => `${Math.max(8, pct(value, total))}%`;
+const normalizeImageKey = (value) => String(value || "").trim().toLowerCase();
+const catalogImageByName = catalogProducts.reduce((acc, product) => {
+  const category = product.category || "";
+  const name = product.name || "";
+  const image =
+    PRODUCT_SPECIFIC_IMAGES[`${category}:${name}`] ||
+    PRODUCT_SPECIFIC_IMAGES[name] ||
+    product.professional_image ||
+    product.image ||
+    "";
+
+  if (image) {
+    acc[`${normalizeImageKey(category)}:${normalizeImageKey(name)}`] = image;
+    acc[normalizeImageKey(name)] = image;
+  }
+
+  return acc;
+}, {});
+const productImageUrl = (product) => {
+  const uploadedImage = product?.photo_url || product?.image || "";
+  if (uploadedImage) {
+    return uploadedImage;
+  }
+
+  const category = normalizeImageKey(product?.category);
+  const name = normalizeImageKey(product?.name);
+  return catalogImageByName[`${category}:${name}`] || catalogImageByName[name] || "";
+};
 const autoResizeTextarea = (event) => {
   const element = event.target;
   element.style.height = "auto";
   element.style.height = `${element.scrollHeight}px`;
+};
+
+const buildProductFormData = (product, { photoFile = null, removePhoto = false } = {}) => {
+  const flowerPrice = Number(product.flower_price ?? product.flowerPrice ?? product.price ?? 0);
+  const bouquetPrice = Number(product.bouquet_price ?? product.bouquetPrice ?? flowerPrice);
+  const formData = new FormData();
+
+  formData.append("name", product.name || "");
+  formData.append("price", String(flowerPrice));
+  formData.append("flower_price", String(flowerPrice));
+  formData.append("bouquet_price", String(bouquetPrice));
+  formData.append("category", product.category || "");
+  formData.append("description", product.description || "");
+
+  if (photoFile) {
+    formData.append("photo", photoFile);
+  }
+
+  if (removePhoto) {
+    formData.append("remove_photo", "true");
+  }
+
+  return formData;
 };
 
 // ─── 3D Falling Petal ─────────────────────────────────────────────────────────
@@ -106,6 +159,9 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
   const [users, setUsers] = useState([]);
   const [groups, setGroups] = useState([]);
   const [productForm, setProductForm] = useState(emptyProduct);
+  const [productFormPhoto, setProductFormPhoto] = useState(null);
+  const [productFormPhotoPreview, setProductFormPhotoPreview] = useState("");
+  const [productPhotoDrafts, setProductPhotoDrafts] = useState({});
   const [staffForm, setStaffForm] = useState(emptyStaff);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
@@ -297,14 +353,21 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
 
     if (rejected.length) {
       const primaryError = rejected[0];
+      const statusCode = primaryError?.response?.status;
       const message =
         primaryError?.response?.data?.error ||
+        primaryError?.response?.data?.detail ||
         primaryError?.message ||
         "Some admin data could not be refreshed.";
 
-      if (message === "Not authenticated" || message === "Please login to continue.") {
+      if (
+        statusCode === 401 ||
+        message === "Not authenticated" ||
+        message === "Please login to continue." ||
+        message === "Authentication required"
+      ) {
         setSessionUser(null);
-        setError("Please sign in with a staff account to load backend admin data.");
+        setError("Please sign in here with your Active, Staff, Superuser account to load admin data.");
         setLoading(false);
         return;
       }
@@ -408,15 +471,23 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
     setSaving(`product-${product.id}`);
     setError("");
     try {
-        const flowerPrice = Number(product.flower_price ?? product.flowerPrice ?? product.price ?? 0);
-        const bouquetPrice = Number(product.bouquet_price ?? product.bouquetPrice ?? flowerPrice);
-        const response = await updateAdminProduct(product.id, {
-          ...product,
-          price: flowerPrice,
-          flower_price: flowerPrice,
-          bouquet_price: bouquetPrice,
-        });
+        const photoDraft = productPhotoDrafts[product.id] || {};
+        const response = await updateAdminProduct(
+          product.id,
+          buildProductFormData(product, {
+            photoFile: photoDraft.file || null,
+            removePhoto: Boolean(photoDraft.remove),
+          })
+        );
         setProducts((current) => current.map((item) => (item.id === product.id ? response.data.product : item)));
+        if (photoDraft.previewUrl) {
+          URL.revokeObjectURL(photoDraft.previewUrl);
+        }
+        setProductPhotoDrafts((current) => {
+          const next = { ...current };
+          delete next[product.id];
+          return next;
+        });
         setNotice("Product updated.");
     } catch (requestError) {
       setError(requestError?.response?.data?.error || "Could not update product.");
@@ -430,16 +501,16 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
     setSaving("new-product");
     setError("");
     try {
-        const flowerPrice = Number(productForm.flower_price || 0);
-        const bouquetPrice = Number(productForm.bouquet_price || flowerPrice);
-        const response = await createAdminProduct({
-          ...productForm,
-          price: flowerPrice,
-          flower_price: flowerPrice,
-          bouquet_price: bouquetPrice,
-        });
+        const response = await createAdminProduct(
+          buildProductFormData(productForm, { photoFile: productFormPhoto })
+        );
         setProducts((current) => [response.data.product, ...current]);
         setProductForm(emptyProduct);
+        setProductFormPhoto(null);
+        if (productFormPhotoPreview) {
+          URL.revokeObjectURL(productFormPhotoPreview);
+        }
+        setProductFormPhotoPreview("");
         navigate(`/admin/products/${response.data.product.id}`);
         setNotice("Product created.");
     } catch (requestError) {
@@ -466,6 +537,50 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
     } finally {
       setSaving("");
     }
+  };
+
+  const changeProductPhotoDraft = (productId, file) => {
+    setProductPhotoDrafts((current) => {
+      const existing = current[productId] || {};
+      if (existing.previewUrl) {
+        URL.revokeObjectURL(existing.previewUrl);
+      }
+
+      return {
+        ...current,
+        [productId]: {
+          file,
+          previewUrl: file ? URL.createObjectURL(file) : "",
+          remove: false,
+        },
+      };
+    });
+  };
+
+  const removeProductPhotoDraft = (productId) => {
+    setProductPhotoDrafts((current) => {
+      const existing = current[productId] || {};
+      if (existing.previewUrl) {
+        URL.revokeObjectURL(existing.previewUrl);
+      }
+
+      return {
+        ...current,
+        [productId]: {
+          file: null,
+          previewUrl: "",
+          remove: true,
+        },
+      };
+    });
+  };
+
+  const changeProductFormPhoto = (file) => {
+    if (productFormPhotoPreview) {
+      URL.revokeObjectURL(productFormPhotoPreview);
+    }
+    setProductFormPhoto(file || null);
+    setProductFormPhotoPreview(file ? URL.createObjectURL(file) : "");
   };
 
   const changeOrderStatus = async (orderId, payload) => {
@@ -647,6 +762,12 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
         .detailCard{display:grid;gap:1rem}
         .detailHeader{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start}
         .detailHeader h3{margin:0;font-size:1.3rem}
+        .photoField{display:grid;grid-template-columns:minmax(160px,240px) 1fr;gap:1rem;align-items:start}
+        .photoPreview{width:100%;aspect-ratio:4/3;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.055);display:grid;place-items:center;color:rgba(255,255,255,.56);font-weight:700}
+        .photoPreview img{width:100%;height:100%;object-fit:cover;display:block}
+        .photoControls{display:grid;gap:.7rem}
+        .fileInput{cursor:pointer}
+        .photoHint{font-size:.86rem;color:rgba(255,255,255,.64);line-height:1.45}
         .usersPanel{display:grid;gap:1rem}
         .userList{display:grid;gap:.85rem}
         .userCard{display:grid;grid-template-columns:minmax(210px,.9fr) minmax(280px,1.35fr) minmax(210px,.85fr) minmax(150px,.55fr);gap:1rem;align-items:start;padding:1rem;border-radius:18px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055)}
@@ -674,7 +795,7 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
         @media (max-width:980px){.heroGrid{grid-template-columns:1fr}}
         @media (max-width:1100px){.userCard{grid-template-columns:1fr 1.35fr}.userActions .btn{width:auto;min-width:180px}}
         @media (max-width:820px){.productToolbar{grid-template-columns:1fr}}
-        @media (max-width:720px){.userCard,.userEditGrid{grid-template-columns:1fr}.userActions .btn{width:100%}}
+        @media (max-width:720px){.userCard,.userEditGrid,.photoField{grid-template-columns:1fr}.userActions .btn{width:100%}}
       `}</style>
       <section className="ap">
         <div className="petals-layer">
@@ -869,6 +990,37 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
                 <div className="card">
                   {selectedProduct ? (
                     <div className="card detailCard">
+                      {(() => {
+                        const photoDraft = productPhotoDrafts[selectedProduct.id] || {};
+                        const previewUrl = photoDraft.previewUrl || (!photoDraft.remove ? productImageUrl(selectedProduct) : "");
+                        return (
+                          <div className="photoField">
+                            <div className="photoPreview">
+                              {previewUrl ? <img src={previewUrl} alt={selectedProduct.name || "Product"} /> : <span>No Image</span>}
+                            </div>
+                            <div className="photoControls">
+                              <input
+                                className="fileInput"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/gif"
+                                onChange={(event) => changeProductPhotoDraft(selectedProduct.id, event.target.files?.[0] || null)}
+                              />
+                              <div className="actions">
+                                <button
+                                  className="btn2"
+                                  type="button"
+                                  onClick={() => removeProductPhotoDraft(selectedProduct.id)}
+                                >
+                                  Remove Image
+                                </button>
+                              </div>
+                              <span className="photoHint">
+                                Upload JPG, PNG, WebP, or GIF images up to 5MB. Click Save Product to apply the image change.
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <div className="detailHeader">
                         <div className="section">
                           <h2>Product Details</h2>
@@ -1132,6 +1284,20 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
                       <input type="number" min="0" placeholder="Bouquet price" value={productForm.bouquet_price} onChange={(e) => setProductForm((c) => ({ ...c, bouquet_price: e.target.value }))} />
                       <input placeholder="Category" value={productForm.category} onChange={(e) => setProductForm((c) => ({ ...c, category: e.target.value }))} />
                       <textarea className="full" placeholder="Description" value={productForm.description} onInput={autoResizeTextarea} onChange={(e) => { autoResizeTextarea(e); setProductForm((c) => ({ ...c, description: e.target.value })); }} />
+                      <div className="photoField full">
+                        <div className="photoPreview">
+                          {productFormPhotoPreview ? <img src={productFormPhotoPreview} alt={productForm.name || "New product"} /> : <span>No Image</span>}
+                        </div>
+                        <div className="photoControls">
+                          <input
+                            className="fileInput"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            onChange={(event) => changeProductFormPhoto(event.target.files?.[0] || null)}
+                          />
+                          <span className="photoHint">Upload an optional product image. JPG, PNG, WebP, and GIF files up to 5MB are supported.</span>
+                        </div>
+                      </div>
                     </div>
                     <div className="actions">
                       <button className="btn" type="submit" disabled={saving === "new-product"}>{saving === "new-product" ? "Creating..." : "Create Product"}</button>

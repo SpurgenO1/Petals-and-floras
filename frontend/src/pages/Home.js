@@ -9,6 +9,8 @@ import tajmahalRose from "../assets/flowers/tajmahal_rose.png";
 import emmaRose from "../assets/flowers/emma_rose.png";
 import purpleRose from "../assets/flowers/purple_rose.png";
 import goldStrikeRose from "../assets/flowers/gold_strike_rose.png";
+import corvetteRose from "../assets/flowers/corvette_rose.png";
+import noblesseRose from "../assets/flowers/noblesse_rose.png";
 import hydrangea from "../assets/flowers/Hydrangea.png";
 
 const fadeInUp = {
@@ -26,6 +28,8 @@ const galleryItems = [
   { name: "Emma Rose", image: emmaRose },
   { name: "Purple Rose", image: purpleRose },
   { name: "Gold Strike Rose", image: goldStrikeRose },
+  { name: "Corvette Rose", image: corvetteRose },
+  { name: "Noblesse Rose", image: noblesseRose },
   { name: "Hydrangea", image: hydrangea }
 ];
 

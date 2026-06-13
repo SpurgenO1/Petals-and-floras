@@ -293,9 +293,35 @@ def normalize_items(items):
     return normalized
 
 
-def serialize_product(product):
+ALLOWED_PRODUCT_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+MAX_PRODUCT_PHOTO_SIZE = 5 * 1024 * 1024
+
+
+def get_product_photo_url(product, request=None):
+    if not getattr(product, "photo", ""):
+        return ""
+    try:
+        url = product.photo.url
+    except ValueError:
+        return ""
+    return request.build_absolute_uri(url) if request is not None else url
+
+
+def validate_product_photo(uploaded_file):
+    if uploaded_file is None:
+        return ""
+    if getattr(uploaded_file, "size", 0) > MAX_PRODUCT_PHOTO_SIZE:
+        return "Product photo must be 5MB or smaller"
+    content_type = str(getattr(uploaded_file, "content_type", "")).lower()
+    if content_type not in ALLOWED_PRODUCT_PHOTO_TYPES:
+        return "Product photo must be a JPG, PNG, WebP, or GIF image"
+    return ""
+
+
+def serialize_product(product, request=None):
     flower_price = int(product.flower_price or product.price or 0)
     bouquet_price = int(product.bouquet_price or flower_price)
+    photo_url = get_product_photo_url(product, request)
     return {
         "id": product.id,
         "name": product.name,
@@ -304,6 +330,8 @@ def serialize_product(product):
         "bouquet_price": bouquet_price,
         "description": product.description,
         "category": product.category or "",
+        "image": photo_url,
+        "photo_url": photo_url,
     }
 
 
@@ -663,6 +691,8 @@ def get_products(request):
             "old_price": None,
             "description": sanitize_string(item.description, 500),
             "category": category,
+            "image": get_product_photo_url(item, request),
+            "photo_url": get_product_photo_url(item, request),
         }
 
     try:
@@ -678,6 +708,8 @@ def get_products(request):
                 "old_price": 1,
                 "description": 1,
                 "category": 1,
+                "image": 1,
+                "photo_url": 1,
                 "updated_at": 1,
             },
         ).sort([("updated_at", -1), ("_id", -1)]).limit(500)
@@ -702,6 +734,8 @@ def get_products(request):
                 "old_price": item.get("old_price"),
                 "description": sanitize_string(item.get("description", ""), 500),
                 "category": category,
+                "image": sanitize_string(item.get("photo_url") or item.get("image") or "", 500),
+                "photo_url": sanitize_string(item.get("photo_url") or item.get("image") or "", 500),
             }
     except PyMongoError:
         pass
@@ -719,6 +753,8 @@ def get_products(request):
                 "old_price": item["old_price"],
                 "description": sanitize_string(item["description"], 500),
                 "category": sanitize_string(item["category"], 50),
+                "image": "",
+                "photo_url": "",
             }
             for item in CATALOG_PRODUCTS
         ]
@@ -903,7 +939,7 @@ def admin_products(request):
             except PyMongoError:
                 pass
 
-            serialized = serialize_product(product)
+            serialized = serialize_product(product, request)
             serialized["source"] = "django"
             serialized["mongo_id"] = ""
             results.append(serialized)
@@ -921,6 +957,8 @@ def admin_products(request):
                     "old_price": 1,
                     "description": 1,
                     "category": 1,
+                    "image": 1,
+                    "photo_url": 1,
                     "updated_at": 1,
                 },
             ).sort([("updated_at", -1), ("_id", -1)]).limit(500)
@@ -958,6 +996,8 @@ def admin_products(request):
                         "old_price": item.get("old_price"),
                         "description": sanitize_string(item.get("description", ""), 1000),
                         "category": sanitize_string(item.get("category", "Floral"), 100),
+                        "image": sanitize_string(item.get("photo_url") or item.get("image") or "", 500),
+                        "photo_url": sanitize_string(item.get("photo_url") or item.get("image") or "", 500),
                         "source": "mongo",
                     }
                 )
@@ -989,6 +1029,10 @@ def admin_products(request):
         return Response({"error": "Product name is too short"}, status=status.HTTP_400_BAD_REQUEST)
     if not description:
         return Response({"error": "Description is required"}, status=status.HTTP_400_BAD_REQUEST)
+    photo = request.FILES.get("photo")
+    photo_error = validate_product_photo(photo)
+    if photo_error:
+        return Response({"error": photo_error}, status=status.HTTP_400_BAD_REQUEST)
 
     product = Product.objects.create(
         name=name,
@@ -997,8 +1041,9 @@ def admin_products(request):
         bouquet_price=bouquet_price,
         description=description,
         category=category,
+        photo=photo or "",
     )
-    return Response({"message": "Product created", "product": serialize_product(product)}, status=status.HTTP_201_CREATED)
+    return Response({"message": "Product created", "product": serialize_product(product, request)}, status=status.HTTP_201_CREATED)
 
 
 @api_view(["PATCH", "DELETE"])
@@ -1045,9 +1090,19 @@ def admin_product_detail(request, product_id):
         if error:
             return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
         product.bouquet_price = bouquet_price
+    if "photo" in request.FILES:
+        photo = request.FILES.get("photo")
+        photo_error = validate_product_photo(photo)
+        if photo_error:
+            return Response({"error": photo_error}, status=status.HTTP_400_BAD_REQUEST)
+        product.photo = photo
+    if str(request.data.get("remove_photo", "")).lower() in {"1", "true", "yes"}:
+        if product.photo:
+            product.photo.delete(save=False)
+        product.photo = ""
 
     product.save()
-    return Response({"message": "Product updated", "product": serialize_product(product)})
+    return Response({"message": "Product updated", "product": serialize_product(product, request)})
 
 
 @api_view(["GET"])

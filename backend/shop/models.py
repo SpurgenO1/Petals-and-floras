@@ -16,6 +16,7 @@ class Product(models.Model):
     bouquet_price = models.IntegerField(default=0)
     description = models.TextField()
     category = models.CharField(max_length=100, blank=True, default="")
+    photo = models.FileField(upload_to="product_photos/", blank=True, default="")
 
     def save(self, *args, **kwargs):
         if not self.flower_price:
