@@ -781,4 +781,3 @@ export default function Contact({ authUser = null }) {
     </>
   );
 }
-

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Link } from "react-router-dom";
 import { getProducts } from "../services/api";
-import { catalogProducts, PRODUCT_SPECIFIC_IMAGES } from "../data/catalogProducts";
+import { catalogProducts, getCatalogPrices, PRODUCT_SPECIFIC_IMAGES } from "../data/catalogProducts";
 
 const CATEGORY_INTEREST_STORAGE_KEY = "pf_category_interest";
 const MotionLink = motion(Link);
@@ -181,9 +181,34 @@ function buildProductDescription(product) {
   ].join(" ");
 }
 
+function formatPrice(value) {
+  const amount = Number(value || 0);
+  return amount > 0 ? `Rs ${amount.toLocaleString()}` : "Price on request";
+}
+
+function getProductPricing(product) {
+  const explicitFlowerPrice = Number(product.flowerPrice ?? product.flower_price ?? 0);
+  const explicitBouquetPrice = Number(product.bouquetPrice ?? product.bouquet_price ?? 0);
+  const basePrice = Number(product.price || 0);
+  const catalogPrices = getCatalogPrices(product.category, Number(String(product.id || "").split("-").pop()) || 0);
+  const isBouquetCategory = String(product.category || "").toLowerCase().includes("bouquet");
+  const flowerPrice = explicitFlowerPrice || basePrice || catalogPrices.flowerPrice;
+  const bouquetPrice = explicitBouquetPrice || (isBouquetCategory ? flowerPrice : Math.max(catalogPrices.bouquetPrice, flowerPrice + 350));
+
+  return {
+    flowerPrice,
+    bouquetPrice,
+    displayPrice: flowerPrice,
+    priceRangeLabel: flowerPrice === bouquetPrice
+      ? formatPrice(flowerPrice)
+      : `${formatPrice(flowerPrice)} / ${formatPrice(bouquetPrice)}`,
+  };
+}
+
 function normalizeProduct(product) {
   const category = product.category || "Floral";
   const name = product.name || "Unknown";
+  const pricing = getProductPricing({ ...product, category, name });
   
   // Use high-quality generated images if available
   // Try category-qualified name first (e.g., "Roses:Tajmahal"), then fall back to plain name
@@ -195,7 +220,10 @@ function normalizeProduct(product) {
   
   return {
     ...product,
-    price: Number(product.price || 0),
+    price: pricing.displayPrice,
+    flowerPrice: pricing.flowerPrice,
+    bouquetPrice: pricing.bouquetPrice,
+    priceRangeLabel: pricing.priceRangeLabel,
     category: category,
     description: buildProductDescription({ ...product, category, name }),
     image: imageUrl,
@@ -300,16 +328,15 @@ function TiltCard({ children }) {
 }
 
 function ProductCard({ product, onOpenDetails }) {
-  const priceLabel = product.price > 0 ? `Rs ${product.price}` : "Price on request";
   const sourceLabel = product.isFromAdmin ? "Live item" : "Catalog item";
 
   return (
     <TiltCard>
       <div className="card">
         <div className="card-img-wrap">
-          <img src={product.image} alt={product.name} className="card-img" />
+          <img src={product.image} alt={product.name} className="card-img" loading="lazy" decoding="async" />
           <div className="img-overlay" />
-          <span className="badge">{priceLabel}</span>
+          <span className="badge">{product.priceRangeLabel}</span>
         </div>
         <div className="card-body">
           <p className="card-cat">{product.category}</p>
@@ -317,6 +344,10 @@ function ProductCard({ product, onOpenDetails }) {
             <h3 className="card-title">{product.name}</h3>
           </button>
           <p className="card-desc">{product.description}</p>
+          <div className="card-price-options">
+            <span>Flower: {formatPrice(product.flowerPrice)}</span>
+            <span>Bouquet: {formatPrice(product.bouquetPrice)}</span>
+          </div>
           <div className="card-footer">
             <span className="stock-note">{sourceLabel}</span>
             <motion.button
@@ -337,7 +368,6 @@ function ProductCard({ product, onOpenDetails }) {
 // ─── Price Range Slider ───────────────────────────────────────────────────────
 function ProductDetailsModal({ product, onClose, onSelectType }) {
   if (!product) return null;
-  const priceLabel = product.price > 0 ? `Rs ${product.price}` : "Price on request";
 
   return (
     <motion.div
@@ -365,13 +395,22 @@ function ProductDetailsModal({ product, onClose, onSelectType }) {
           <p className="product-modal-category">{product.category}</p>
           <h3 className="product-modal-title">{product.name}</h3>
           <p className="product-modal-description">{product.description}</p>
-          <div className="product-modal-price">{priceLabel}</div>
+          <div className="product-modal-price-grid">
+            <div>
+              <span>Flower</span>
+              <strong>{formatPrice(product.flowerPrice)}</strong>
+            </div>
+            <div>
+              <span>Bouquet</span>
+              <strong>{formatPrice(product.bouquetPrice)}</strong>
+            </div>
+          </div>
           <div className="product-modal-actions">
             <button type="button" className="product-type-btn primary" onClick={() => onSelectType("flower")}>
-              Flower
+              Flower - {formatPrice(product.flowerPrice)}
             </button>
             <button type="button" className="product-type-btn secondary" onClick={() => onSelectType("bouquet")}>
-              Bouquet
+              Bouquet - {formatPrice(product.bouquetPrice)}
             </button>
           </div>
         </div>
@@ -481,7 +520,16 @@ export default function Products({ cart = [], setCart = () => {} }) {
   useEffect(() => {
     hasProductsRef.current = products.length > 0;
     productsSignatureRef.current = JSON.stringify(
-      products.map((p) => ({ id: p.id, name: p.name, category: p.category, price: p.price, description: p.description, isFromAdmin: p.isFromAdmin }))
+      products.map((p) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        price: p.price,
+        flowerPrice: p.flowerPrice,
+        bouquetPrice: p.bouquetPrice,
+        description: p.description,
+        isFromAdmin: p.isFromAdmin,
+      }))
     );
   }, [products]);
 
@@ -536,7 +584,16 @@ export default function Products({ cart = [], setCart = () => {} }) {
             }
           });
 
-          const nextSignature = JSON.stringify(mergedProducts.map((p) => ({ id: p.id, name: p.name, category: p.category, price: p.price, description: p.description, isFromAdmin: p.isFromAdmin })));
+          const nextSignature = JSON.stringify(mergedProducts.map((p) => ({
+            id: p.id,
+            name: p.name,
+            category: p.category,
+            price: p.price,
+            flowerPrice: p.flowerPrice,
+            bouquetPrice: p.bouquetPrice,
+            description: p.description,
+            isFromAdmin: p.isFromAdmin,
+          })));
           if (nextSignature !== productsSignatureRef.current) setProducts(mergedProducts);
           setError(mergedProducts.length > 0 ? "" : "No products found in MongoDB or Django admin.");
           lastFetchTimeRef.current = now;
@@ -553,24 +610,29 @@ export default function Products({ cart = [], setCart = () => {} }) {
         fetchInFlightRef.current = false;
       }
     }
-    loadProducts({ force: true });
+    const loadTimer = window.setTimeout(() => loadProducts({ force: true }), 120);
     function handleFocus() { loadProducts({ background: true }); }
     window.addEventListener("focus", handleFocus);
-    return () => { ignore = true; window.removeEventListener("focus", handleFocus); };
+    return () => {
+      ignore = true;
+      window.clearTimeout(loadTimer);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, [fallbackCatalogProducts]);
 
   const addToCart = (product, purchaseType) => {
     recordCategoryInterest(product.category, 3);
     const cartKey = `${product.id}-${purchaseType}`;
+    const selectedPrice = purchaseType === "bouquet" ? product.bouquetPrice : product.flowerPrice;
     setCart((prev) => {
       const exists = prev.find((item) => (item.cartKey || `${item.id}-${item.purchaseType || "flower"}`) === cartKey);
       return exists
         ? prev.map((item) =>
             (item.cartKey || `${item.id}-${item.purchaseType || "flower"}`) === cartKey
-              ? { ...item, qty: (item.qty || 1) + 1, purchaseType, cartKey }
+              ? { ...item, qty: (item.qty || 1) + 1, purchaseType, price: selectedPrice, cartKey }
               : item
           )
-        : [...prev, { ...product, qty: 1, purchaseType, cartKey }];
+        : [...prev, { ...product, price: selectedPrice, qty: 1, purchaseType, cartKey }];
     });
   };
 
@@ -578,29 +640,52 @@ export default function Products({ cart = [], setCart = () => {} }) {
   const normalizedMinPrice = Number(minPriceFilter || 0);
   const normalizedMaxPrice = Number(maxPriceFilter || 0);
 
-  const searchMatchedProducts = products.filter((product) => {
-    if (!normalizedSearchTerm) return true;
-    const searchableText = [product.name, product.category, product.description].filter(Boolean).join(" ").toLowerCase();
-    return searchableText.includes(normalizedSearchTerm);
-  });
+  const searchMatchedProducts = useMemo(
+    () => products.filter((product) => {
+      if (!normalizedSearchTerm) return true;
+      const searchableText = [product.name, product.category, product.description].filter(Boolean).join(" ").toLowerCase();
+      return searchableText.includes(normalizedSearchTerm);
+    }),
+    [normalizedSearchTerm, products]
+  );
 
-  const categories = Array.from(new Set(searchMatchedProducts.map((p) => p.category).filter(Boolean)));
-  const rankedCategories = rankCategories(categories, searchMatchedProducts, categoryInterest, searchTerm);
+  const categoryCounts = useMemo(
+    () => searchMatchedProducts.reduce((counts, product) => {
+      if (product.category) {
+        counts[product.category] = (counts[product.category] || 0) + 1;
+      }
+      return counts;
+    }, {}),
+    [searchMatchedProducts]
+  );
 
-  const filtered = searchMatchedProducts
-    .filter((p) => !categoryFilter || p.category === categoryFilter)
-    .filter((p) => Number(p.price || 0) >= normalizedMinPrice)
-    .filter((p) => !normalizedMaxPrice || Number(p.price || 0) <= normalizedMaxPrice)
-    .sort((left, right) => {
-      if (sortOption === "price-low-high") return Number(left.price || 0) - Number(right.price || 0);
-      if (sortOption === "price-high-low") return Number(right.price || 0) - Number(left.price || 0);
-      if (sortOption === "name-a-z") return String(left.name || "").localeCompare(String(right.name || ""));
-      if (sortOption === "newest") return Number(right.id || 0) - Number(left.id || 0);
-      const ri = Number(categoryInterest[right.category] || 0);
-      const li = Number(categoryInterest[left.category] || 0);
-      if (ri !== li) return ri - li;
-      return String(left.name || "").localeCompare(String(right.name || ""));
-    });
+  const categories = useMemo(
+    () => Object.keys(categoryCounts),
+    [categoryCounts]
+  );
+
+  const rankedCategories = useMemo(
+    () => rankCategories(categories, searchMatchedProducts, categoryInterest, searchTerm),
+    [categories, categoryInterest, searchMatchedProducts, searchTerm]
+  );
+
+  const filtered = useMemo(
+    () => searchMatchedProducts
+      .filter((p) => !categoryFilter || p.category === categoryFilter)
+      .filter((p) => Number(p.flowerPrice || p.price || 0) >= normalizedMinPrice || Number(p.bouquetPrice || p.price || 0) >= normalizedMinPrice)
+      .filter((p) => !normalizedMaxPrice || Number(p.flowerPrice || p.price || 0) <= normalizedMaxPrice || Number(p.bouquetPrice || p.price || 0) <= normalizedMaxPrice)
+      .sort((left, right) => {
+        if (sortOption === "price-low-high") return Number(left.flowerPrice || left.price || 0) - Number(right.flowerPrice || right.price || 0);
+        if (sortOption === "price-high-low") return Number(right.bouquetPrice || right.price || 0) - Number(left.bouquetPrice || left.price || 0);
+        if (sortOption === "name-a-z") return String(left.name || "").localeCompare(String(right.name || ""));
+        if (sortOption === "newest") return Number(right.id || 0) - Number(left.id || 0);
+        const ri = Number(categoryInterest[right.category] || 0);
+        const li = Number(categoryInterest[left.category] || 0);
+        if (ri !== li) return ri - li;
+        return String(left.name || "").localeCompare(String(right.name || ""));
+      }),
+    [categoryFilter, categoryInterest, normalizedMaxPrice, normalizedMinPrice, searchMatchedProducts, sortOption]
+  );
 
   const petals = isCompactView ? petalsRef.current.slice(0, 5) : petalsRef.current;
 
@@ -944,6 +1029,10 @@ export default function Products({ cart = [], setCart = () => {} }) {
           background: linear-gradient(135deg, var(--rose-mid), var(--rose-deep));
           color: #fff; font-family: 'Cormorant Garamond', serif; font-weight: 700; font-size: 1.05rem;
           padding: 0.25rem 0.85rem; border-radius: 999px; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+          max-width: calc(100% - 28px);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .card-body {
           display: flex; flex-direction: column; flex: 1; min-height: 0;
@@ -959,7 +1048,26 @@ export default function Products({ cart = [], setCart = () => {} }) {
         }
         .card-title { font-family: 'Cormorant Garamond', serif; font-size: 1.35rem; font-weight: 600; color: #fff; line-height: 1.25; margin-bottom: 0.8rem; min-height: 3.4rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .card-title-btn:hover .card-title, .card-title-btn:focus-visible .card-title { color: var(--rose-light); }
-        .card-desc { color: rgba(255,255,255,0.72); font-size: 0.92rem; line-height: 1.55; margin-bottom: 1rem; flex: 1; min-height: 4.3rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .card-desc { color: rgba(255,255,255,0.72); font-size: 0.92rem; line-height: 1.55; margin-bottom: 0.85rem; flex: 1; min-height: 4.3rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .card-price-options {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 0.55rem;
+          margin-bottom: 1rem;
+        }
+        .card-price-options span {
+          min-width: 0;
+          padding: 0.46rem 0.55rem;
+          border-radius: 12px;
+          background: rgba(255,255,255,0.055);
+          border: 1px solid rgba(255,255,255,0.1);
+          color: rgba(255,255,255,0.84);
+          font-size: 0.76rem;
+          line-height: 1.2;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
         .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: auto; }
         .stock-note { color: rgba(255,255,255,0.74); font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; }
         .btn-add {
@@ -999,7 +1107,30 @@ export default function Products({ cart = [], setCart = () => {} }) {
         .product-modal-category { font-size: 0.75rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--rose-light); }
         .product-modal-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(1.9rem, 3vw, 2.5rem); color: #fff; line-height: 1.1; }
         .product-modal-description { color: rgba(255,255,255,0.78); line-height: 1.7; font-size: 0.98rem; }
-        .product-modal-price { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; color: #fff; }
+        .product-modal-price-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.8rem;
+        }
+        .product-modal-price-grid div {
+          padding: 0.9rem 1rem;
+          border-radius: 16px;
+          background: rgba(255,255,255,0.055);
+          border: 1px solid rgba(255,255,255,0.12);
+        }
+        .product-modal-price-grid span {
+          display: block;
+          margin-bottom: 0.18rem;
+          font-size: 0.72rem;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: rgba(255,255,255,0.54);
+        }
+        .product-modal-price-grid strong {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 1.55rem;
+          color: #fff;
+        }
         .product-modal-actions { display: flex; gap: 0.85rem; flex-wrap: wrap; margin-top: 0.4rem; }
         .product-type-btn {
           min-width: 140px;
@@ -1063,6 +1194,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
           .card-cat { font-size: 0.62rem; }
           .card-title { font-size: 1.08rem; min-height: auto; }
           .card-desc { font-size: 0.82rem; min-height: auto; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+          .card-price-options { grid-template-columns: 1fr; }
           .card-footer { flex-direction: column; align-items: stretch; }
           .btn-add { width: 100%; }
           .cart-bubble { left: 1rem; right: 1rem; bottom: 5.75rem; text-align: center; }
@@ -1070,6 +1202,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
           .product-modal { grid-template-columns: 1fr; max-height: calc(100vh - 2rem); overflow-y: auto; }
           .product-modal-media { max-height: 220px; }
           .product-modal-content { padding: 1.2rem; }
+          .product-modal-price-grid { grid-template-columns: 1fr; }
           .product-type-btn { width: 100%; }
         }
       `}</style>
@@ -1176,7 +1309,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
                         <span className="cat-count">{searchMatchedProducts.length}</span>
                       </button>
                       {rankedCategories.map((cat) => {
-                        const count = searchMatchedProducts.filter((p) => p.category === cat).length;
+                        const count = categoryCounts[cat] || 0;
                         return (
                           <button
                             key={cat}

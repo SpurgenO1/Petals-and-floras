@@ -30,9 +30,19 @@ function extractError(error, fallback) {
     return data.error;
   }
 
-  const firstFieldError = Object.values(data).find((value) => Array.isArray(value) && value[0]);
+  if (typeof data.detail === "string") {
+    return data.detail;
+  }
+
+  const firstFieldError = Object.values(data).find(
+    (value) => (Array.isArray(value) && value[0]) || (typeof value === "string" && value.trim())
+  );
   if (firstFieldError) {
-    return firstFieldError[0];
+    return Array.isArray(firstFieldError) ? firstFieldError[0] : firstFieldError;
+  }
+
+  if (error?.message && error.name === "ApiRequestError") {
+    return error.message;
   }
 
   return fallback;
@@ -147,6 +157,14 @@ export default function Login({ authUser, onAuthSuccess }) {
 
       if (mode === "register") {
         setRegisterForm(initialRegisterState);
+        if (authResponse.data?.user) {
+          const { user: authenticatedUser } = await resolveAuthenticatedUser(authResponse.data.user);
+          onAuthSuccess?.(authenticatedUser);
+          setMessage(authResponse.data?.message || "Account created and logged in successfully.");
+          navigate("/", { replace: true });
+          return;
+        }
+
         setMode("login");
         setMessage(authResponse.data?.message || "Account created. Check your email to verify your address.");
         return;
@@ -510,14 +528,16 @@ export default function Login({ authUser, onAuthSuccess }) {
               )}
 
               <div className="auth-field">
-                <label className="auth-label" htmlFor="email">Email Address</label>
+                <label className="auth-label" htmlFor="email">
+                  {mode === "login" ? "Email or Username" : "Email Address"}
+                </label>
                 <input
                   id="email"
-                  type="email"
+                  type={mode === "login" ? "text" : "email"}
                   className="auth-input"
                   value={activeForm.email}
                   onChange={(event) => updateField("email", event.target.value)}
-                  placeholder="Enter your email"
+                  placeholder={mode === "login" ? "Enter your email or username" : "Enter your email"}
                   required
                 />
               </div>

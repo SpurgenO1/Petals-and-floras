@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import DOMPurify from "dompurify";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   createFeedback,
   createOrder,
   createPaymentOrder,
+  getUserFacingError,
   getDeliveryOptions,
   verifyPaymentOrder,
 } from "../services/api";
@@ -28,6 +30,7 @@ const initialFeedbackFormState = {
 };
 
 const RAZORPAY_CHECKOUT_SCRIPT = "https://checkout.razorpay.com/v1/checkout.js";
+const RAZORPAY_KEY_ID = process.env.REACT_APP_RAZORPAY_KEY_ID || "";
 
 const occasionOptions = [
   { value: "birthday", label: "Birthday" },
@@ -52,6 +55,12 @@ const formatDisplayDate = (value) => {
     return value;
   }
 };
+
+const sanitizeText = (value) =>
+  DOMPurify.sanitize(String(value || ""), {
+    ALLOWED_TAGS: [],
+    ALLOWED_ATTR: [],
+  });
 
 const loadRazorpayScript = () =>
   new Promise((resolve, reject) => {
@@ -272,6 +281,12 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
 
   const buildOrderPayload = () => ({
     ...form,
+    name: sanitizeText(form.name),
+    phone: sanitizeText(form.phone),
+    address: sanitizeText(form.address),
+    city: sanitizeText(form.city),
+    pincode: sanitizeText(form.pincode),
+    gift_message: sanitizeText(form.gift_message),
     items: cart,
     same_day_delivery: sameDaySelected,
     status: "Pending",
@@ -302,19 +317,27 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
         if (!Razorpay) {
           throw new Error("Razorpay checkout is unavailable right now.");
         }
-
         const paymentOrderResponse = await createPaymentOrder(Math.round(total * 100));
         const paymentOrder = paymentOrderResponse.data || {};
+        const razorpayKeyId = paymentOrder.key_id || RAZORPAY_KEY_ID;
+
+        if (!paymentOrder.order_id) {
+          throw new Error("Unable to start Razorpay checkout right now.");
+        }
+        if (!razorpayKeyId) {
+          throw new Error("Razorpay is not configured for the frontend.");
+        }
+
         const orderPayload = buildOrderPayload();
 
         response = await new Promise((resolve, reject) => {
           const razorpayInstance = new Razorpay({
-            key: paymentOrder.key,
-            amount: paymentOrder.amount,
-            currency: paymentOrder.currency || "INR",
+            key: razorpayKeyId,
+            amount: Math.round(total * 100),
+            currency: "INR",
             name: "Petals & Floras",
             description: "Floral order payment",
-            order_id: paymentOrder.id,
+            order_id: paymentOrder.order_id,
             prefill: {
               name: form.name || authUser?.name || "",
               email: authUser?.email || "",
@@ -375,12 +398,7 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
       setPaymentMethod("ONLINE");
       clearCart();
     } catch (requestError) {
-      setError(
-        requestError?.message ||
-        requestError?.response?.data?.error ||
-          requestError?.response?.data?.message ||
-          "Failed to place order."
-      );
+      setError(getUserFacingError(requestError, "Failed to place order."));
     } finally {
       setLoading(false);
     }
@@ -401,17 +419,13 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
         target_type: "shop",
         product_id: null,
         rating: Number(feedbackForm.rating),
-        title: feedbackForm.title.trim(),
-        message: feedbackForm.message.trim(),
+        title: sanitizeText(feedbackForm.title.trim()),
+        message: sanitizeText(feedbackForm.message.trim()),
       });
       setFeedbackMessage("Thank you. Your feedback was shared successfully.");
       setFeedbackForm(initialFeedbackFormState);
     } catch (requestError) {
-      setFeedbackError(
-        requestError?.response?.data?.error ||
-          requestError?.response?.data?.message ||
-          "We could not save your feedback right now."
-      );
+      setFeedbackError(getUserFacingError(requestError, "We could not save your feedback right now."));
     } finally {
       setFeedbackLoading(false);
     }

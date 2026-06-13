@@ -39,7 +39,8 @@ class OrderTrackingEventInline(admin.TabularInline):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "category", "price")
+    list_display = ("id", "name", "category", "flower_price", "bouquet_price", "price")
+    fields = ("name", "category", "flower_price", "bouquet_price", "price", "description")
     list_filter = ("category",)
     search_fields = ("name", "category", "description")
 

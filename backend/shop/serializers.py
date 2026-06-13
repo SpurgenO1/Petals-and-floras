@@ -10,6 +10,8 @@ class ProductSerializer(serializers.Serializer):
     id = serializers.CharField(max_length=100)
     name = serializers.CharField(max_length=100)
     price = serializers.IntegerField(min_value=0, max_value=999999999)
+    flower_price = serializers.IntegerField(required=False, min_value=0, max_value=999999999)
+    bouquet_price = serializers.IntegerField(required=False, min_value=0, max_value=999999999)
     old_price = serializers.IntegerField(required=False, allow_null=True, min_value=0, max_value=999999999)
     description = serializers.CharField(max_length=1000)
     category = serializers.CharField(required=False, allow_blank=True, max_length=50)
@@ -83,6 +85,18 @@ class OrderSerializer(serializers.Serializer):
         if len(value) > 300:
             raise serializers.ValidationError("Gift message is too long")
         return value
+
+
+class PaymentOrderCreateSerializer(serializers.Serializer):
+    amount = serializers.IntegerField(min_value=100, max_value=100000000)
+
+
+class PaymentVerificationSerializer(OrderSerializer):
+    payment_method = serializers.ChoiceField(choices=["ONLINE"])
+    payment_status = serializers.ChoiceField(choices=["PAID"])
+    payment_order_id = serializers.CharField(max_length=100)
+    payment_id = serializers.CharField(max_length=100)
+    payment_signature = serializers.CharField(max_length=255)
 
 
 class OrderHistorySerializer(serializers.ModelSerializer):
@@ -213,6 +227,7 @@ class AuthUserSerializer(serializers.Serializer):
     username = serializers.CharField(read_only=True)
     email = serializers.EmailField(read_only=True)
     name = serializers.CharField(read_only=True)
+    is_active = serializers.BooleanField(read_only=True)
     is_staff = serializers.BooleanField(read_only=True)
     is_superuser = serializers.BooleanField(read_only=True)
 
@@ -241,5 +256,21 @@ class RegisterSerializer(serializers.Serializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField(max_length=254)
+    email = serializers.CharField(required=False, allow_blank=True, max_length=254)
+    username = serializers.CharField(required=False, allow_blank=True, max_length=150)
+    identifier = serializers.CharField(required=False, allow_blank=True, max_length=254)
     password = serializers.CharField(max_length=128, write_only=True)
+
+    def validate(self, attrs):
+        identifier = (
+            attrs.get("identifier")
+            or attrs.get("email")
+            or attrs.get("username")
+            or ""
+        ).strip()
+
+        if not identifier:
+            raise serializers.ValidationError({"email": "Enter your email or username"})
+
+        attrs["identifier"] = identifier
+        return attrs

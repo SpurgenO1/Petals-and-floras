@@ -75,7 +75,7 @@ export default function Navbar({ cartCount = 0, authUser = null, onLogout = () =
   ];
   const accountLinks = authUser ? [{ to: "/orders", label: "My Orders" }] : [];
 
-  const hasAdminAccess = Boolean(authUser?.is_staff || authUser?.is_superuser);
+  const hasAdminAccess = Boolean(authUser?.is_active && authUser?.is_staff && authUser?.is_superuser);
 
   return (
     <>

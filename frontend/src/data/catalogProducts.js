@@ -358,15 +358,55 @@ const CATEGORY_IMAGES = {
   "Innovative Bouquets": null,
 };
 
+const CATEGORY_PRICE_DEFAULTS = {
+  Roses: { flower: 80, bouquet: 699 },
+  Carnations: { flower: 45, bouquet: 549 },
+  "Asiatic Lilies": { flower: 160, bouquet: 999 },
+  "Oriental Lilies": { flower: 220, bouquet: 1299 },
+  "Exotic & Novelties": { flower: 180, bouquet: 1199 },
+  Gerberas: { flower: 60, bouquet: 599 },
+  Orchids: { flower: 180, bouquet: 1199 },
+  Fillers: { flower: 35, bouquet: 399 },
+  "Cut Foliages": { flower: 30, bouquet: 349 },
+  "Hybrid Chrysanthamums": { flower: 55, bouquet: 549 },
+  "Bouquet & Car Deco Materials": { flower: 75, bouquet: 299 },
+  "Real Flower Bouquets": { flower: 699, bouquet: 699 },
+  "Artificial Flower Bouquets": { flower: 799, bouquet: 799 },
+  "Chocolate Bouquets": { flower: 899, bouquet: 899 },
+  "Jewelry Bouquets": { flower: 1299, bouquet: 1299 },
+  "Gift Bouquets": { flower: 999, bouquet: 999 },
+  "Handmade Bouquets": { flower: 899, bouquet: 899 },
+  "Occasion Bouquets": { flower: 1199, bouquet: 1199 },
+  "Innovative Bouquets": { flower: 1399, bouquet: 1399 },
+};
+
+export function getCatalogPrices(category, itemIndex = 0) {
+  const defaults = CATEGORY_PRICE_DEFAULTS[category] || { flower: 75, bouquet: 599 };
+  const variation = (Number(itemIndex) % 5) * 10;
+  const flowerPrice = defaults.flower + variation;
+  const bouquetPrice = Math.max(defaults.bouquet + variation * 4, flowerPrice);
+
+  return {
+    flowerPrice,
+    bouquetPrice,
+  };
+}
+
 export const catalogProducts = Object.entries(catalogGroups).flatMap(([category, names], groupIndex) =>
-  names.map((name, itemIndex) => ({
-    id: `catalog-${groupIndex + 1}-${itemIndex + 1}`,
-    name,
-    category,
-    price: 0,
-    old_price: null,
-    description: `${name} from the ${category} collection.`,
-    professional_image: PRODUCT_SPECIFIC_IMAGES[`${category}:${name}`] || PRODUCT_SPECIFIC_IMAGES[name] || CATEGORY_IMAGES[category] || null
-  }))
+  names.map((name, itemIndex) => {
+    const prices = getCatalogPrices(category, itemIndex);
+
+    return {
+      id: `catalog-${groupIndex + 1}-${itemIndex + 1}`,
+      name,
+      category,
+      price: prices.flowerPrice,
+      flowerPrice: prices.flowerPrice,
+      bouquetPrice: prices.bouquetPrice,
+      old_price: null,
+      description: `${name} from the ${category} collection.`,
+      professional_image: PRODUCT_SPECIFIC_IMAGES[`${category}:${name}`] || PRODUCT_SPECIFIC_IMAGES[name] || CATEGORY_IMAGES[category] || null
+    };
+  })
 );
 

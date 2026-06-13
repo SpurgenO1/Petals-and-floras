@@ -14,6 +14,16 @@
   ],
   "routes": [
     {
+      "src": "/(.*)",
+      "headers": {
+        "X-Frame-Options": "DENY",
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Content-Security-Policy": "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' https://checkout.razorpay.com; connect-src 'self' https://api.razorpay.com; frame-src https://api.razorpay.com https://checkout.razorpay.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self' https://api.razorpay.com"
+      },
+      "continue": true
+    },
+    {
       "src": "/admin(?:/(.*))?",
       "dest": "backend/config/wsgi.py"
     },

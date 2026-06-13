@@ -1,11 +1,17 @@
+import hashlib
+import hmac
+import json
+import logging
 import razorpay
 from collections import Counter
 from datetime import timedelta
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.hashers import make_password
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.models import Group, User
 from django.conf import settings
 from django.core.mail import send_mail
+from django.http import JsonResponse, HttpResponseForbidden
 from django.db import transaction
 from django.db.models import Sum
 from django.middleware.csrf import get_token
@@ -15,10 +21,15 @@ from django.utils.encoding import force_bytes, force_str
 from django.utils import timezone
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.csrf import csrf_exempt
+from django_ratelimit.decorators import ratelimit
 from pymongo.errors import PyMongoError
-from rest_framework.decorators import api_view, throttle_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.tokens import RefreshToken
 import re
 
 from .catalog import CATALOG_PRODUCTS
@@ -41,11 +52,19 @@ from .serializers import (
     LoginSerializer,
     OrderHistorySerializer,
     OrderSerializer,
+    PaymentOrderCreateSerializer,
+    PaymentVerificationSerializer,
     ProductSerializer,
     RegisterSerializer,
 )
 from .throttles import OrderRateThrottle, PaymentRateThrottle, ProductRateThrottle
 from .throttles import AuthLoginRateThrottle, AuthRegisterRateThrottle, AuthUserRateThrottle, FeedbackRateThrottle
+
+
+payment_logger = logging.getLogger("payments")
+security_logger = logging.getLogger("security")
+ACCESS_COOKIE_NAME = "pf_access_token"
+REFRESH_COOKIE_NAME = "pf_refresh_token"
 
 
 def validate_order(data):
@@ -178,6 +197,7 @@ def serialize_auth_user(user):
             "username": user.username,
             "email": user.email,
             "name": user.get_full_name() or user.username,
+            "is_active": user.is_active,
             "is_staff": user.is_staff,
             "is_superuser": user.is_superuser,
         }
@@ -238,8 +258,11 @@ def get_staff_user(request):
     user = get_effective_user(request)
     if user is None:
         return None, Response({"error": "Not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-    if not (user.is_staff or user.is_superuser):
-        return None, Response({"error": "Administrator access required"}, status=status.HTTP_403_FORBIDDEN)
+    if not (user.is_active and user.is_staff and user.is_superuser):
+        return None, Response(
+            {"error": "Active staff superuser access required"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
     return user, None
 
 
@@ -271,13 +294,29 @@ def normalize_items(items):
 
 
 def serialize_product(product):
+    flower_price = int(product.flower_price or product.price or 0)
+    bouquet_price = int(product.bouquet_price or flower_price)
     return {
         "id": product.id,
         "name": product.name,
-        "price": int(product.price),
+        "price": flower_price,
+        "flower_price": flower_price,
+        "bouquet_price": bouquet_price,
         "description": product.description,
         "category": product.category or "",
     }
+
+
+def parse_product_price(value, label):
+    try:
+        price = int(value)
+    except (TypeError, ValueError):
+        return None, f"{label} must be a valid number"
+
+    if price < 0:
+        return None, f"{label} cannot be negative"
+
+    return price, ""
 
 
 def serialize_order(order):
@@ -539,28 +578,63 @@ def persist_order(user, payload):
     )
 
 
+def set_auth_cookies(response, user):
+    refresh = RefreshToken.for_user(user)
+    access = refresh.access_token
+    secure_cookie = not settings.DEBUG
+    samesite_value = "None" if secure_cookie else "Lax"
+
+    response.set_cookie(
+        ACCESS_COOKIE_NAME,
+        str(access),
+        httponly=True,
+        secure=secure_cookie,
+        samesite=samesite_value,
+        max_age=15 * 60,
+        path="/",
+    )
+    response.set_cookie(
+        REFRESH_COOKIE_NAME,
+        str(refresh),
+        httponly=True,
+        secure=secure_cookie,
+        samesite=samesite_value,
+        max_age=7 * 24 * 60 * 60,
+        path="/api/auth/",
+    )
+
+
+def clear_auth_cookies(response):
+    response.delete_cookie(ACCESS_COOKIE_NAME, path="/")
+    response.delete_cookie(REFRESH_COOKIE_NAME, path="/api/auth/")
+
+
+def get_refresh_cookie(request):
+    return request.COOKIES.get(REFRESH_COOKIE_NAME, "")
+
+
 def verify_razorpay_payment_signature(payment_order_id, payment_id, payment_signature):
     if not payment_order_id or not payment_id or not payment_signature:
-        return "Missing payment verification details."
+        return False
+    if not settings.RAZORPAY_KEY_SECRET:
+        return False
 
-    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
-        return "Payment service not configured. Contact support."
+    message = f"{payment_order_id}|{payment_id}".encode("utf-8")
+    secret = settings.RAZORPAY_KEY_SECRET.encode("utf-8")
+    expected_signature = hmac.new(secret, message, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected_signature, payment_signature)
 
-    try:
-        client = razorpay.Client(
-            auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
-        )
-        client.utility.verify_payment_signature(
-            {
-                "razorpay_order_id": payment_order_id,
-                "razorpay_payment_id": payment_id,
-                "razorpay_signature": payment_signature,
-            }
-        )
-    except Exception:
-        return "Payment verification failed."
 
-    return None
+def verify_razorpay_webhook_signature(body, signature):
+    if not settings.RAZORPAY_WEBHOOK_SECRET or not signature:
+        return False
+
+    expected_signature = hmac.new(
+        settings.RAZORPAY_WEBHOOK_SECRET.encode("utf-8"),
+        body,
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected_signature, signature)
 
 
 @api_view(["GET"])
@@ -583,7 +657,9 @@ def get_products(request):
         product_map[dedupe_key] = {
             "id": str(item.id),
             "name": name,
-            "price": int(item.price),
+            "price": int(item.flower_price or item.price or 0),
+            "flower_price": int(item.flower_price or item.price or 0),
+            "bouquet_price": int(item.bouquet_price or item.flower_price or item.price or 0),
             "old_price": None,
             "description": sanitize_string(item.description, 500),
             "category": category,
@@ -597,6 +673,8 @@ def get_products(request):
                 "django_product_id": 1,
                 "name": 1,
                 "price": 1,
+                "flower_price": 1,
+                "bouquet_price": 1,
                 "old_price": 1,
                 "description": 1,
                 "category": 1,
@@ -618,7 +696,9 @@ def get_products(request):
             product_map[dedupe_key] = {
                 "id": str(mongo_identity),
                 "name": name,
-                "price": int(item.get("price", 0)),
+                "price": int(item.get("flower_price", item.get("price", 0)) or 0),
+                "flower_price": int(item.get("flower_price", item.get("price", 0)) or 0),
+                "bouquet_price": int(item.get("bouquet_price", item.get("flower_price", item.get("price", 0))) or 0),
                 "old_price": item.get("old_price"),
                 "description": sanitize_string(item.get("description", ""), 500),
                 "category": category,
@@ -634,6 +714,8 @@ def get_products(request):
                 "id": item["id"],
                 "name": sanitize_string(item["name"], 100),
                 "price": int(item["price"]),
+                "flower_price": int(item.get("flower_price", item["price"])),
+                "bouquet_price": int(item.get("bouquet_price", item.get("flower_price", item["price"]))),
                 "old_price": item["old_price"],
                 "description": sanitize_string(item["description"], 500),
                 "category": sanitize_string(item["category"], 50),
@@ -646,29 +728,60 @@ def get_products(request):
 
 
 @api_view(["GET"])
-@throttle_classes([AuthUserRateThrottle])
-def get_current_user(request):
-    user = get_effective_user(request)
-    if user is None:
-        return Response({"error": "Not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+@permission_classes([AllowAny])
+def system_status(request):
+    mongo_ok = True
+    mongo_error = ""
 
-    return Response(serialize_auth_user(user))
+    try:
+        get_products_collection().estimated_document_count()
+        get_orders_collection().estimated_document_count()
+    except Exception as exc:
+        mongo_ok = False
+        mongo_error = str(exc)
+        security_logger.exception("MongoDB health check failed")
+
+    return Response(
+        {
+            "backend": {
+                "ok": True,
+                "service": "django",
+            },
+            "django_admin": {
+                "ok": True,
+                "url": "/admin/",
+            },
+            "mongodb": {
+                "ok": mongo_ok,
+                "database": settings.MONGO_DB_NAME,
+                "error": mongo_error,
+            },
+        }
+    )
 
 
 @api_view(["GET"])
 @throttle_classes([AuthUserRateThrottle])
+@permission_classes([IsAuthenticated])
+def get_current_user(request):
+    return Response(serialize_auth_user(request.user))
+
+
+@api_view(["GET"])
+@throttle_classes([AuthUserRateThrottle])
+@permission_classes([AllowAny])
 def get_csrf_token(request):
     return Response({"csrfToken": get_token(request)})
 
 
 @api_view(["GET"])
 @throttle_classes([AuthUserRateThrottle])
+@permission_classes([IsAuthenticated])
 def get_order_history(request):
-    user = get_effective_user(request)
-    if user is None:
-        return Response({"error": "Not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-
-    orders = Order.objects.filter(user=user).prefetch_related("tracking_events").order_by("-created_at")
+    # Safe ORM usage: filter values through parameterized queries generated by Django.
+    # Avoid building raw SQL like:
+    # Order.objects.raw(f"SELECT * FROM shop_order WHERE user_id = {request.GET['user_id']}")
+    orders = Order.objects.filter(user=request.user).prefetch_related("tracking_events").order_by("-created_at")
     serializer = OrderHistorySerializer(orders, many=True)
     return Response(serializer.data)
 
@@ -780,28 +893,108 @@ def admin_products(request):
         return denied_response
 
     if request.method == "GET":
-        products = Product.objects.order_by("-id")[:200]
-        return Response({"results": [serialize_product(product) for product in products]})
+        django_products = list(Product.objects.order_by("-id")[:200])
+        results = []
+        seen_keys = set()
+
+        for product in django_products:
+            try:
+                sync_product_to_mongo(product)
+            except PyMongoError:
+                pass
+
+            serialized = serialize_product(product)
+            serialized["source"] = "django"
+            serialized["mongo_id"] = ""
+            results.append(serialized)
+            seen_keys.add(f"django::{product.id}")
+
+        try:
+            mongo_products = get_products_collection().find(
+                {},
+                {
+                    "django_product_id": 1,
+                    "name": 1,
+                    "price": 1,
+                    "flower_price": 1,
+                    "bouquet_price": 1,
+                    "old_price": 1,
+                    "description": 1,
+                    "category": 1,
+                    "updated_at": 1,
+                },
+            ).sort([("updated_at", -1), ("_id", -1)]).limit(500)
+
+            for item in mongo_products:
+                django_product_id = item.get("django_product_id")
+                if django_product_id:
+                    key = f"django::{django_product_id}"
+                    if key in seen_keys:
+                        for result in results:
+                            if str(result["id"]) == str(django_product_id):
+                                result["source"] = "django+mongo"
+                                result["mongo_id"] = str(item.get("_id", ""))
+                                break
+                        continue
+                    seen_keys.add(key)
+
+                name = sanitize_string(item.get("name", ""), 100)
+                if not name:
+                    continue
+
+                mongo_id = str(item.get("_id", ""))
+                mongo_key = f"mongo::{mongo_id}"
+                if mongo_key in seen_keys:
+                    continue
+
+                results.append(
+                    {
+                        "id": f"mongo-{mongo_id}",
+                        "mongo_id": mongo_id,
+                        "name": name,
+                        "price": int(item.get("flower_price", item.get("price", 0)) or 0),
+                        "flower_price": int(item.get("flower_price", item.get("price", 0)) or 0),
+                        "bouquet_price": int(item.get("bouquet_price", item.get("flower_price", item.get("price", 0))) or 0),
+                        "old_price": item.get("old_price"),
+                        "description": sanitize_string(item.get("description", ""), 1000),
+                        "category": sanitize_string(item.get("category", "Floral"), 100),
+                        "source": "mongo",
+                    }
+                )
+                seen_keys.add(mongo_key)
+        except PyMongoError:
+            pass
+
+        return Response({"results": results})
 
     name = sanitize_string(request.data.get("name", ""), 100)
     description = sanitize_string(request.data.get("description", ""), 1000)
     category = sanitize_string(request.data.get("category", ""), 100)
 
-    try:
-        price = int(request.data.get("price", 0))
-    except (TypeError, ValueError):
-        return Response({"error": "Price must be a valid number"}, status=status.HTTP_400_BAD_REQUEST)
+    flower_price, error = parse_product_price(
+        request.data.get("flower_price", request.data.get("price", 0)),
+        "Flower price",
+    )
+    if error:
+        return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+
+    bouquet_price, error = parse_product_price(
+        request.data.get("bouquet_price", flower_price),
+        "Bouquet price",
+    )
+    if error:
+        return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
 
     if len(name) < 2:
         return Response({"error": "Product name is too short"}, status=status.HTTP_400_BAD_REQUEST)
     if not description:
         return Response({"error": "Description is required"}, status=status.HTTP_400_BAD_REQUEST)
-    if price < 0:
-        return Response({"error": "Price cannot be negative"}, status=status.HTTP_400_BAD_REQUEST)
 
     product = Product.objects.create(
         name=name,
-        price=price,
+        price=flower_price,
+        flower_price=flower_price,
+        bouquet_price=bouquet_price,
         description=description,
         category=category,
     )
@@ -835,14 +1028,23 @@ def admin_product_detail(request, product_id):
         product.description = description
     if "category" in request.data:
         product.category = sanitize_string(request.data.get("category", ""), 100)
-    if "price" in request.data:
-        try:
-            price = int(request.data.get("price", 0))
-        except (TypeError, ValueError):
-            return Response({"error": "Price must be a valid number"}, status=status.HTTP_400_BAD_REQUEST)
-        if price < 0:
-            return Response({"error": "Price cannot be negative"}, status=status.HTTP_400_BAD_REQUEST)
-        product.price = price
+    if "price" in request.data or "flower_price" in request.data:
+        flower_price, error = parse_product_price(
+            request.data.get("flower_price", request.data.get("price", product.flower_price or product.price or 0)),
+            "Flower price",
+        )
+        if error:
+            return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+        product.flower_price = flower_price
+        product.price = flower_price
+    if "bouquet_price" in request.data:
+        bouquet_price, error = parse_product_price(
+            request.data.get("bouquet_price", product.bouquet_price or product.flower_price or product.price or 0),
+            "Bouquet price",
+        )
+        if error:
+            return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+        product.bouquet_price = bouquet_price
 
     product.save()
     return Response({"message": "Product updated", "product": serialize_product(product)})
@@ -1033,6 +1235,7 @@ def admin_create_staff_user(request):
         last_name=last_name,
         is_active=True,
         is_staff=True,
+        is_superuser=True,
     )
     return Response({"message": "Staff account created", "user": serialize_user_admin(user)}, status=status.HTTP_201_CREATED)
 
@@ -1113,10 +1316,10 @@ def register_user(request):
 
     try:
         with transaction.atomic():
-            user = User.objects.create_user(
+            user = User.objects.create(
                 username=username,
                 email=email,
-                password=payload["password"],
+                password=make_password(payload["password"]),
                 first_name=payload["name"].strip(),
                 is_active=False,
             )
@@ -1131,20 +1334,6 @@ def register_user(request):
     try:
         send_verification_email(request, user)
     except Exception:
-        if user and user.pk and settings.DEBUG:
-            user.is_active = True
-            user.save(update_fields=["is_active"])
-            return Response(
-                {
-                    "message": (
-                        "Account created. Email delivery is unavailable in local development, "
-                        "so the account was activated automatically."
-                    ),
-                    "user": serialize_auth_user(user),
-                },
-                status=status.HTTP_201_CREATED,
-            )
-
         if user and user.pk:
             user.delete()
         return Response(
@@ -1186,55 +1375,104 @@ def verify_email(request, uidb64, token):
 
 @api_view(["POST"])
 @throttle_classes([AuthLoginRateThrottle])
+@ratelimit(key="ip", rate=settings.AUTH_LOGIN_RATELIMIT, method="POST", block=True)
 def login_user(request):
+    django_request = getattr(request, "_request", request)
     serializer = LoginSerializer(data=request.data)
     if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
 
-    email = serializer.validated_data["email"].strip().lower()
+    raw_identifier = serializer.validated_data["identifier"].strip()
     password = serializer.validated_data["password"]
+    normalized_identifier = raw_identifier.lower()
 
-    matched_user = User.objects.filter(email__iexact=email).first()
+    if "@" in raw_identifier:
+        matched_user = User.objects.filter(email__iexact=normalized_identifier).first()
+    else:
+        matched_user = User.objects.filter(username__iexact=raw_identifier).first()
+
     if matched_user and not matched_user.is_active:
         return Response(
             {"error": "Please verify your email address before logging in."},
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    username = matched_user.username if matched_user else email
-    user = authenticate(request, username=username, password=password)
-
-    if user is None:
+    if matched_user and settings.DEBUG and not matched_user.has_usable_password():
         return Response(
-            {"error": "Invalid email or password"},
+            {"error": "This account does not have a password login enabled."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    if matched_user is None:
+        return Response(
+            {"error": "No account found with this email or username."},
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
-    login(request, user)
-    return Response(
+    if not matched_user.check_password(password):
+        return Response(
+            {"error": "Password is incorrect for this account."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    login(django_request, matched_user, backend="django.contrib.auth.backends.ModelBackend")
+    response = Response(
         {
             "message": "Logged in successfully",
-            "user": serialize_auth_user(user),
+            "user": serialize_auth_user(matched_user),
         }
     )
+    set_auth_cookies(response, matched_user)
+    return response
 
 
 @api_view(["POST"])
 @throttle_classes([AuthUserRateThrottle])
+@permission_classes([AllowAny])
 def logout_user(request):
-    logout(request)
-    return Response({"message": "Logged out successfully"})
+    django_request = getattr(request, "_request", request)
+    refresh_token = get_refresh_cookie(request)
+    if refresh_token:
+        try:
+            RefreshToken(refresh_token).blacklist()
+        except TokenError:
+            pass
+
+    logout(django_request)
+    response = Response({"message": "Logged out successfully"})
+    clear_auth_cookies(response)
+    return response
+
+
+@api_view(["POST"])
+@throttle_classes([AuthUserRateThrottle])
+@permission_classes([AllowAny])
+def refresh_token(request):
+    raw_refresh_token = get_refresh_cookie(request)
+    if not raw_refresh_token:
+        return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    try:
+        refresh = RefreshToken(raw_refresh_token)
+        user = User.objects.get(pk=refresh["user_id"])
+        response = Response({"message": "Session refreshed", "user": serialize_auth_user(user)})
+        set_auth_cookies(response, user)
+        try:
+            refresh.blacklist()
+        except TokenError:
+            pass
+        return response
+    except Exception:
+        response = Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+        clear_auth_cookies(response)
+        return response
 
 
 @api_view(["POST"])
 @throttle_classes([OrderRateThrottle])
+@permission_classes([IsAuthenticated])
 def create_order(request):
-    user = get_effective_user(request)
-    if user is None:
-        return Response(
-            {"error": "Login required to place an order"},
-            status=status.HTTP_401_UNAUTHORIZED,
-        )
+    user = request.user
 
     error = validate_order(request.data)
     if error:
@@ -1271,115 +1509,162 @@ def create_order(request):
 
 @api_view(["POST"])
 @throttle_classes([PaymentRateThrottle])
+@permission_classes([IsAuthenticated])
+@ratelimit(key="user_or_ip", rate="10/m", method="POST", block=True)
 def create_payment(request):
-    user = get_effective_user(request)
-    if user is None:
-        return Response(
-            {"error": "Login required to start payment"},
-            status=status.HTTP_401_UNAUTHORIZED,
-        )
-
-    try:
-        amount = int(request.data.get("amount", 0))
-    except (ValueError, TypeError):
-        return Response({"error": "Invalid amount format"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    min_amount = 1  # 1 paise
-    max_amount = 100000000  # 1 crore rupees
-    
-    if amount < min_amount or amount > max_amount:
-        return Response(
-            {"error": f"Amount must be between {min_amount} and {max_amount}"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    serializer = PaymentOrderCreateSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({"error": "Invalid payment request"}, status=status.HTTP_400_BAD_REQUEST)
 
     if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
-        return Response(
-            {
-                "error": "Payment service not configured. Contact support."
-            },
-            status=status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
+        payment_logger.warning("Razorpay not configured for create_order")
+        return Response({"error": "Something went wrong"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
     try:
-        client = razorpay.Client(
-            auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
-        )
-        payment_order = client.order.create(
+        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+        razorpay_order = client.order.create(
             {
-                "amount": amount,
+                "amount": serializer.validated_data["amount"],
                 "currency": "INR",
                 "payment_capture": 1,
             }
         )
+        payment_logger.info(
+            "Created Razorpay order",
+            extra={"order_id": razorpay_order.get("id"), "user_id": request.user.id},
+        )
         return Response(
             {
-                "id": payment_order.get("id"),
-                "amount": payment_order.get("amount"),
-                "currency": payment_order.get("currency"),
-                "key": settings.RAZORPAY_KEY_ID,
+                "order_id": razorpay_order.get("id"),
+                "key_id": settings.RAZORPAY_KEY_ID,
             },
             status=status.HTTP_201_CREATED,
         )
-    except Exception as e:
-        return Response(
-            {"error": "Payment processing failed"},
-            status=status.HTTP_502_BAD_GATEWAY,
-        )
+    except razorpay.errors.BadRequestError as exc:
+        payment_logger.exception("Razorpay create order failed")
+        if settings.DEBUG and "Authentication failed" in str(exc):
+            return Response(
+                {"error": "Razorpay authentication failed. Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in backend/.env."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return Response({"error": "Something went wrong"}, status=status.HTTP_502_BAD_GATEWAY)
+    except Exception:
+        payment_logger.exception("Razorpay create order failed")
+        return Response({"error": "Something went wrong"}, status=status.HTTP_502_BAD_GATEWAY)
 
 
 @api_view(["POST"])
 @throttle_classes([PaymentRateThrottle])
+@permission_classes([IsAuthenticated])
+@ratelimit(key="user_or_ip", rate="10/m", method="POST", block=True)
 def verify_payment(request):
-    user = get_effective_user(request)
-    if user is None:
-        return Response(
-            {"error": "Login required to verify payment"},
-            status=status.HTTP_401_UNAUTHORIZED,
-        )
-
-    error = validate_order(request.data)
-    if error:
-        return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
-
-    serializer = OrderSerializer(data=request.data)
+    serializer = PaymentVerificationSerializer(data=request.data)
     if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Invalid payment payload"}, status=status.HTTP_400_BAD_REQUEST)
 
-    payload = prepare_order_payload(serializer.validated_data)
-    delivery_error = validate_delivery_request(
-        payload.get("delivery_date"),
-        payload.get("delivery_slot", ""),
-        request_same_day=bool(payload.get("same_day_delivery")),
-    )
-    if delivery_error:
-        return Response({"error": delivery_error}, status=status.HTTP_400_BAD_REQUEST)
-
-    payment_method = str(payload.get("payment_method", "")).upper()
-    if payment_method != "ONLINE":
-        return Response(
-            {"error": "Online payment verification requires payment_method to be ONLINE."},
-            status=status.HTTP_400_BAD_REQUEST,
+    try:
+        payload = prepare_order_payload(serializer.validated_data)
+        delivery_error = validate_delivery_request(
+            payload.get("delivery_date"),
+            payload.get("delivery_slot", ""),
+            request_same_day=bool(payload.get("same_day_delivery")),
         )
+        if delivery_error:
+            return Response({"error": "Invalid payment payload"}, status=status.HTTP_400_BAD_REQUEST)
 
-    signature_error = verify_razorpay_payment_signature(
-        payload.get("payment_order_id", ""),
-        payload.get("payment_id", ""),
-        payload.get("payment_signature", ""),
-    )
-    if signature_error:
-        return Response({"error": signature_error}, status=status.HTTP_400_BAD_REQUEST)
+        if not verify_razorpay_payment_signature(
+            payload.get("payment_order_id", ""),
+            payload.get("payment_id", ""),
+            payload.get("payment_signature", ""),
+        ):
+            payment_logger.warning(
+                "Rejected invalid Razorpay signature",
+                extra={"user_id": request.user.id, "payment_order_id": payload.get("payment_order_id", "")},
+            )
+            return Response({"error": "Something went wrong"}, status=status.HTTP_400_BAD_REQUEST)
 
-    response_payload, error_response = persist_order(user, payload)
-    if error_response is not None:
-        return error_response
+        with transaction.atomic():
+            if Order.objects.select_for_update().filter(payment_id=payload["payment_id"]).exists():
+                payment_logger.warning(
+                    "Duplicate payment verify blocked",
+                    extra={"payment_id": payload["payment_id"], "user_id": request.user.id},
+                )
+                return Response({"error": "Payment already processed"}, status=status.HTTP_409_CONFLICT)
 
-    return Response(response_payload, status=status.HTTP_201_CREATED)
+            if Order.objects.select_for_update().filter(payment_order_id=payload["payment_order_id"]).exists():
+                payment_logger.warning(
+                    "Duplicate Razorpay order verify blocked",
+                    extra={"payment_order_id": payload["payment_order_id"], "user_id": request.user.id},
+                )
+                return Response({"error": "Payment already processed"}, status=status.HTTP_409_CONFLICT)
+
+            response_payload, error_response = persist_order(request.user, payload)
+            if error_response is not None:
+                return Response({"error": "Something went wrong"}, status=error_response.status_code)
+
+        payment_logger.info(
+            "Payment verified and order persisted",
+            extra={"payment_id": payload["payment_id"], "payment_order_id": payload["payment_order_id"]},
+        )
+        return Response(response_payload, status=status.HTTP_201_CREATED)
+    except Exception:
+        payment_logger.exception("Payment verification failed")
+        return Response({"error": "Something went wrong"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@csrf_exempt
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def razorpay_webhook(request):
+    signature = request.headers.get("X-Razorpay-Signature", "")
+    body = request.body or b""
+
+    if not verify_razorpay_webhook_signature(body, signature):
+        security_logger.warning("Rejected invalid Razorpay webhook signature")
+        return Response({"error": "Invalid signature"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return Response({"error": "Invalid payload"}, status=status.HTTP_400_BAD_REQUEST)
+
+    event_name = payload.get("event", "")
+    payment_entity = (((payload.get("payload") or {}).get("payment") or {}).get("entity") or {})
+    payment_id = str(payment_entity.get("id", "")).strip()
+    payment_order_id = str(payment_entity.get("order_id", "")).strip()
+
+    try:
+        existing_order = Order.objects.filter(payment_id=payment_id).first() if payment_id else None
+        if existing_order and existing_order.status == Order.STATUS_PAID:
+            payment_logger.info("Webhook already processed", extra={"payment_id": payment_id, "event": event_name})
+            return Response({"status": "ok"}, status=status.HTTP_200_OK)
+
+        if existing_order and event_name in {"payment.captured", "order.paid"}:
+            existing_order.status = Order.STATUS_PAID
+            existing_order.payment_order_id = payment_order_id or existing_order.payment_order_id
+            existing_order.save(update_fields=["status", "payment_order_id", "payment_id"])
+            payment_logger.info("Webhook marked order as paid", extra={"payment_id": payment_id, "event": event_name})
+            return Response({"status": "ok"}, status=status.HTTP_200_OK)
+
+        payment_logger.info(
+            "Webhook accepted without local state change",
+            extra={"payment_id": payment_id, "payment_order_id": payment_order_id, "event": event_name},
+        )
+        return Response({"status": "ok"}, status=status.HTTP_200_OK)
+    except Exception:
+        payment_logger.exception("Webhook processing failed")
+        return Response({"error": "Something went wrong"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 def csrf_failure(request, reason=""):
-    """Handle CSRF failures."""
-    return Response(
-        {"error": "CSRF validation failed"},
-        status=status.HTTP_403_FORBIDDEN,
-    )
+    """Return JSON for API requests and a normal Django response for admin/pages."""
+    request_path = getattr(request, "path", "") or ""
+    accepts_json = "application/json" in str(request.headers.get("Accept", "")).lower()
+
+    if request_path.startswith("/api/") or accepts_json:
+        return JsonResponse(
+            {"error": "CSRF validation failed"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    return HttpResponseForbidden("CSRF verification failed. Request aborted.")

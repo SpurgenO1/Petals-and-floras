@@ -23,18 +23,23 @@ from .views import (
     get_feedback,
     get_order_history,
     get_products,
+    system_status,
     login_user,
+    refresh_token,
+    razorpay_webhook,
     logout_user,
     register_user,
     verify_email,
 )
 
 urlpatterns = [
+    path("status/", system_status),
     path("products/", get_products),
     path("order/", create_order),
     path("delivery/options/", get_delivery_options),
     path("payment/create/", create_payment),
     path("payment/verify/", verify_payment),
+    path("payment/webhook/", razorpay_webhook),
     path("feedback/", get_feedback),
     path("feedback/create/", create_feedback),
     path("admin/overview/", get_admin_overview),
@@ -55,5 +60,6 @@ urlpatterns = [
     path("auth/register/", register_user),
     path("auth/verify-email/<uidb64>/<token>/", verify_email),
     path("auth/login/", login_user),
+    path("auth/refresh/", refresh_token),
     path("auth/logout/", logout_user),
 ]

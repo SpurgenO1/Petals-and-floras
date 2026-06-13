@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   createAdminProduct,
@@ -12,6 +12,9 @@ import {
   getAdminOverview,
   getAdminProducts,
   getAdminUsers,
+  getCurrentUser,
+  loginUser,
+  setRuntimeAuthUser,
   updateAdminFeedback,
   updateAdminOrder,
   updateAdminProduct,
@@ -27,12 +30,9 @@ const tabs = [
   ["history", "Order History"],
   ["feedback", "Feedback"],
   ["users", "Users"],
-  ["permissions", "Permissions"],
-  ["staff", "Create Staff"],
-  ["create-product", "Create Product"],
 ];
 
-const orderStatuses = ["Pending", "Paid", "Cancelled"];
+const orderStatuses = ["Pending", "Paid", "Failed", "Cancelled"];
 const deliveryStatuses = [
   ["order_placed", "Order Placed"],
   ["preparing_bouquet", "Preparing Bouquet"],
@@ -41,8 +41,11 @@ const deliveryStatuses = [
 ];
 const feedbackStatuses = ["pending", "reviewed", "hidden"];
 
-const emptyProduct = { name: "", price: "", category: "", description: "" };
+const emptyProduct = { name: "", flower_price: "", bouquet_price: "", category: "", description: "" };
 const emptyStaff = { first_name: "", last_name: "", username: "", email: "", password: "" };
+const emptyAdminLogin = { email: "", password: "" };
+const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+const hasThreeTickAdminAccess = (user) => Boolean(user?.is_active && user?.is_staff && user?.is_superuser);
 
 const fmtMoney = (amount) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(amount || 0));
@@ -67,7 +70,28 @@ function FallingPetal({ style }) {
   );
 }
 
-export default function AdminPortal({ authUser }) {
+async function resolveAdminSession() {
+  const retryDelays = [0, 150, 400];
+
+  for (const delay of retryDelays) {
+    if (delay > 0) {
+      await wait(delay);
+    }
+
+    try {
+      const response = await getCurrentUser();
+      if (response?.data) {
+        return response.data;
+      }
+    } catch {
+      // Cookies can take a short moment to become visible after the login response.
+    }
+  }
+
+  return null;
+}
+
+export default function AdminPortal({ authUser, onAuthSuccess }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [tab, setTab] = useState("overview");
@@ -87,10 +111,16 @@ export default function AdminPortal({ authUser }) {
   const [saving, setSaving] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const hasAdminAccess = Boolean(authUser?.is_staff || authUser?.is_superuser);
-  const productDetailMatch = location.pathname.match(/^\/admin\/products\/(\d+)\/?$/);
-  const selectedProductId = productDetailMatch ? Number(productDetailMatch[1]) : null;
+  const [sessionUser, setSessionUser] = useState(authUser || null);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [adminLoginForm, setAdminLoginForm] = useState(emptyAdminLogin);
+  const [adminLoginLoading, setAdminLoginLoading] = useState(false);
+  const effectiveUser = sessionUser || authUser;
+  const hasAdminAccess = hasThreeTickAdminAccess(effectiveUser);
+  const productDetailMatch = location.pathname.match(/^\/admin\/products\/([^/]+)\/?$/);
+  const selectedProductId = productDetailMatch ? productDetailMatch[1] : null;
   const [isCompactView, setIsCompactView] = useState(false);
+  const totalProductsCount = Number(overview?.stats?.products_count ?? products.length ?? 0);
 
   const petalsRef = useRef(
     Array.from({ length: 14 }, () => ({
@@ -107,6 +137,7 @@ export default function AdminPortal({ authUser }) {
     const totalOrders = orders.length;
     const paidOrders = orders.filter((order) => order.status === "Paid");
     const pendingOrders = orders.filter((order) => order.status === "Pending");
+    const failedOrders = orders.filter((order) => order.status === "Failed");
     const cancelledOrders = orders.filter((order) => order.status === "Cancelled");
     const totalRevenue = Number(overview?.stats?.total_revenue || 0);
     const avgOrderValue = totalOrders ? Math.round(totalRevenue / totalOrders) : 0;
@@ -140,13 +171,14 @@ export default function AdminPortal({ authUser }) {
       pendingOrders.length ? `${pendingOrders.length} orders still need processing` : null,
       pendingFeedback ? `${pendingFeedback} feedback entries are waiting for moderation` : null,
       totalUsers && activeUsers < totalUsers ? `${totalUsers - activeUsers} user accounts are inactive` : null,
-      products.length === 0 ? "No products are available in the catalog yet" : null,
+      totalProductsCount === 0 ? "No products are available in the catalog yet" : null,
     ].filter(Boolean);
 
     return {
       totalOrders,
       paidOrders: paidOrders.length,
       pendingOrders: pendingOrders.length,
+      failedOrders: failedOrders.length,
       cancelledOrders: cancelledOrders.length,
       totalRevenue,
       avgOrderValue,
@@ -163,10 +195,10 @@ export default function AdminPortal({ authUser }) {
       maxRecentRevenue,
       attentionItems,
     };
-  }, [orders, overview, users, feedbackEntries, products]);
+  }, [orders, overview, users, feedbackEntries, products, totalProductsCount]);
 
   const selectedProduct = useMemo(
-    () => products.find((product) => product.id === selectedProductId) || null,
+    () => products.find((product) => String(product.id) === String(selectedProductId)) || null,
     [products, selectedProductId]
   );
   const productCategories = useMemo(
@@ -204,10 +236,10 @@ export default function AdminPortal({ authUser }) {
           case "price-high":
             return Number(right.price || 0) - Number(left.price || 0);
           case "oldest":
-            return Number(left.id || 0) - Number(right.id || 0);
+            return String(left.id || "").localeCompare(String(right.id || ""), undefined, { numeric: true });
           case "newest":
           default:
-            return Number(right.id || 0) - Number(left.id || 0);
+            return String(right.id || "").localeCompare(String(left.id || ""), undefined, { numeric: true });
         }
       });
   }, [productCategoryFilter, productSearch, productSort, products]);
@@ -270,11 +302,20 @@ export default function AdminPortal({ authUser }) {
         primaryError?.message ||
         "Some admin data could not be refreshed.";
 
+      if (message === "Not authenticated" || message === "Please login to continue.") {
+        setSessionUser(null);
+        setError("Please sign in with a staff account to load backend admin data.");
+        setLoading(false);
+        return;
+      }
+
       setError(
         requests.some((result) => result.status === "fulfilled")
           ? `${message} The rest of the admin workspace is still available and will retry automatically.`
           : message
       );
+    } else {
+      setError("");
     }
 
     if (!background) {
@@ -283,12 +324,48 @@ export default function AdminPortal({ authUser }) {
   };
 
   useEffect(() => {
+    setSessionUser(authUser || null);
+  }, [authUser]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function refreshAdminSession() {
+      setAuthChecking(true);
+      try {
+        const response = await getCurrentUser();
+        if (active) {
+          setSessionUser(response.data || null);
+        }
+      } catch {
+        if (active && !authUser) {
+          setSessionUser(null);
+        }
+      } finally {
+        if (active) {
+          setAuthChecking(false);
+        }
+      }
+    }
+
+    refreshAdminSession();
+
+    return () => {
+      active = false;
+    };
+  }, [authUser]);
+
+  useEffect(() => {
+    if (authChecking) {
+      return;
+    }
+
     if (hasAdminAccess) {
       loadAll();
     } else {
       setLoading(false);
     }
-  }, [hasAdminAccess]);
+  }, [authChecking, hasAdminAccess]);
 
   useEffect(() => {
     if (!hasAdminAccess) {
@@ -331,7 +408,14 @@ export default function AdminPortal({ authUser }) {
     setSaving(`product-${product.id}`);
     setError("");
     try {
-        const response = await updateAdminProduct(product.id, { ...product, price: Number(product.price) });
+        const flowerPrice = Number(product.flower_price ?? product.flowerPrice ?? product.price ?? 0);
+        const bouquetPrice = Number(product.bouquet_price ?? product.bouquetPrice ?? flowerPrice);
+        const response = await updateAdminProduct(product.id, {
+          ...product,
+          price: flowerPrice,
+          flower_price: flowerPrice,
+          bouquet_price: bouquetPrice,
+        });
         setProducts((current) => current.map((item) => (item.id === product.id ? response.data.product : item)));
         setNotice("Product updated.");
     } catch (requestError) {
@@ -346,7 +430,14 @@ export default function AdminPortal({ authUser }) {
     setSaving("new-product");
     setError("");
     try {
-        const response = await createAdminProduct({ ...productForm, price: Number(productForm.price) });
+        const flowerPrice = Number(productForm.flower_price || 0);
+        const bouquetPrice = Number(productForm.bouquet_price || flowerPrice);
+        const response = await createAdminProduct({
+          ...productForm,
+          price: flowerPrice,
+          flower_price: flowerPrice,
+          bouquet_price: bouquetPrice,
+        });
         setProducts((current) => [response.data.product, ...current]);
         setProductForm(emptyProduct);
         navigate(`/admin/products/${response.data.product.id}`);
@@ -439,6 +530,39 @@ export default function AdminPortal({ authUser }) {
     }
   };
 
+  const handleAdminLogin = async (event) => {
+    event.preventDefault();
+    setAdminLoginLoading(true);
+    setError("");
+    setNotice("");
+
+    try {
+      await loginUser(adminLoginForm);
+      const user = await resolveAdminSession();
+      if (!user) {
+        setError("Login succeeded, but the browser did not keep the admin session cookie. Refresh and sign in again.");
+        return;
+      }
+
+      if (!hasThreeTickAdminAccess(user)) {
+        setError("This account needs Active, Staff status, and Superuser status enabled in Django admin.");
+        return;
+      }
+
+      setSessionUser(user);
+      setRuntimeAuthUser(user);
+      onAuthSuccess?.(user);
+      setAdminLoginForm(emptyAdminLogin);
+      setError("");
+      setNotice("Admin session authenticated.");
+      await loadAll();
+    } catch (requestError) {
+      setError(requestError?.message || requestError?.response?.data?.error || "Could not sign in to admin data.");
+    } finally {
+      setAdminLoginLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     const compactQuery = window.matchMedia("(max-width: 640px), (prefers-reduced-motion: reduce)");
@@ -450,7 +574,15 @@ export default function AdminPortal({ authUser }) {
 
   const petals = isCompactView ? petalsRef.current.slice(0, 5) : petalsRef.current;
 
-  if (!authUser) return <Navigate to="/login" replace />;
+  if (authChecking) {
+    return (
+      <section className="ap">
+        <div className="aw">
+          <div className="msg">Checking staff session...</div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <>
@@ -515,10 +647,34 @@ export default function AdminPortal({ authUser }) {
         .detailCard{display:grid;gap:1rem}
         .detailHeader{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start}
         .detailHeader h3{margin:0;font-size:1.3rem}
+        .usersPanel{display:grid;gap:1rem}
+        .userList{display:grid;gap:.85rem}
+        .userCard{display:grid;grid-template-columns:minmax(210px,.9fr) minmax(280px,1.35fr) minmax(210px,.85fr) minmax(150px,.55fr);gap:1rem;align-items:start;padding:1rem;border-radius:18px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055)}
+        .userCard:hover{background:rgba(255,255,255,.075);border-color:rgba(255,255,255,.18)}
+        .userIdentity{display:grid;gap:.45rem;min-width:0}
+        .userAvatar{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(215,181,109,.34),rgba(232,83,109,.38));border:1px solid rgba(255,255,255,.16);font-weight:800;color:#fff}
+        .userTitle{display:grid;gap:.25rem;min-width:0}
+        .userTitle strong,.userEmailValue{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .userEditGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem}
+        .field{display:grid;gap:.32rem;min-width:0}
+        .field.full{grid-column:1/-1}
+        .field span,.fieldLabel{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.48);font-weight:700}
+        .userCard input,.userCard select{border-radius:12px;background:rgba(35,5,17,.58);border-color:rgba(255,255,255,.13)}
+        .flagGroup{display:grid;gap:.65rem}
+        .checkRow{display:flex;align-items:center;gap:.55rem;padding:.62rem .7rem;border-radius:12px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.88)}
+        .checkRow input{width:1rem;height:1rem;accent-color:#e8536d;flex:0 0 auto}
+        .accountBadge{width:max-content;max-width:100%;padding:.34rem .65rem;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);font-size:.85rem;color:rgba(255,255,255,.72)}
+        .userActions{display:flex;justify-content:center;align-items:center;align-self:stretch}
+        .userActions .btn{width:100%;min-height:44px}
+        .adminLoginCard{max-width:520px;margin:4rem auto;display:grid;gap:1rem}
+        .adminLoginCard h2{margin:0;color:#fff}
+        .adminLoginCard p{margin:0;color:rgba(255,255,255,.68)}
         input:focus,textarea:focus,select:focus{border-color:rgba(232,83,109,.8);box-shadow:0 0 0 3px rgba(232,83,109,.14);background:rgba(255,255,255,.08)}
         select option{background:#2d0616;color:#fff}
         @media (max-width:980px){.heroGrid{grid-template-columns:1fr}}
+        @media (max-width:1100px){.userCard{grid-template-columns:1fr 1.35fr}.userActions .btn{width:auto;min-width:180px}}
         @media (max-width:820px){.productToolbar{grid-template-columns:1fr}}
+        @media (max-width:720px){.userCard,.userEditGrid{grid-template-columns:1fr}.userActions .btn{width:100%}}
       `}</style>
       <section className="ap">
         <div className="petals-layer">
@@ -531,11 +687,35 @@ export default function AdminPortal({ authUser }) {
             <Link className="btn2" to="/">Back To Store</Link>
           </div>
 
-          {!hasAdminAccess ? <div className="msg err">Your account does not have staff access yet.</div> : null}
+          {!hasAdminAccess ? <div className="msg err">Your account needs Active, Staff status, and Superuser status enabled in Django admin.</div> : null}
           {notice ? <div className="msg">{notice}</div> : null}
           {error ? <div className="msg err">{error}</div> : null}
 
-          {hasAdminAccess ? (
+          {!effectiveUser || !hasAdminAccess ? (
+            <form className="card adminLoginCard" onSubmit={handleAdminLogin}>
+              <div className="section">
+                <h2>Admin Data Sign In</h2>
+                <p>Use an account with Active, Staff status, and Superuser status enabled to access Django administrator and MongoDB data.</p>
+              </div>
+              <input
+                type="text"
+                placeholder="Admin username or email"
+                value={adminLoginForm.email}
+                onChange={(event) => setAdminLoginForm((current) => ({ ...current, email: event.target.value }))}
+                required
+              />
+              <input
+                type="password"
+                placeholder="Admin password"
+                value={adminLoginForm.password}
+                onChange={(event) => setAdminLoginForm((current) => ({ ...current, password: event.target.value }))}
+                required
+              />
+              <button className="btn" type="submit" disabled={adminLoginLoading}>
+                {adminLoginLoading ? "Signing In..." : "Sign In To Admin Data"}
+              </button>
+            </form>
+          ) : hasAdminAccess ? (
             <>
               <div className="tabs">
                 {tabs.map(([id, label]) => (
@@ -565,10 +745,10 @@ export default function AdminPortal({ authUser }) {
                   <div className="subGrid">
                     <div className="card metric"><span>Revenue</span><strong>{fmtMoney(dashboard.totalRevenue)}</strong><small>Total realized order value</small></div>
                     <div className="card metric"><span>Average Order</span><strong>{fmtMoney(dashboard.avgOrderValue)}</strong><small>Average order value across current orders</small></div>
-                    <div className="card metric"><span>Conversion Flow</span><strong>{dashboard.paidOrders}/{dashboard.totalOrders || 0}</strong><small>{dashboard.pendingOrders} pending, {dashboard.cancelledOrders} cancelled</small></div>
+                    <div className="card metric"><span>Conversion Flow</span><strong>{dashboard.paidOrders}/{dashboard.totalOrders || 0}</strong><small>{dashboard.pendingOrders} pending, {dashboard.failedOrders} failed, {dashboard.cancelledOrders} cancelled</small></div>
                     <div className="card metric"><span>User Health</span><strong>{dashboard.activeUsers}/{dashboard.totalUsers || 0}</strong><small>{dashboard.staffUsers} staff accounts active in admin</small></div>
                     <div className="card metric"><span>Feedback Score</span><strong>{dashboard.avgRating}/5</strong><small>{dashboard.pendingFeedback} pending moderation items</small></div>
-                    <div className="card metric"><span>Catalog Shape</span><strong>{products.length}</strong><small>{dashboard.topCategories[0]?.[0] || "No top category yet"} leads the catalog</small></div>
+                    <div className="card metric"><span>Catalog Shape</span><strong>{totalProductsCount}</strong><small>{dashboard.topCategories[0]?.[0] || "No top category yet"} leads the catalog</small></div>
                   </div>
 
                   <div className="heroGrid" style={{ marginTop: "1rem" }}>
@@ -615,6 +795,10 @@ export default function AdminPortal({ authUser }) {
                         <div className="barRow">
                           <div className="barMeta"><span>Pending</span><span>{dashboard.pendingOrders} orders</span></div>
                           <div className="barTrack"><div className="barFill" style={{ width: clampWidth(dashboard.pendingOrders, dashboard.totalOrders), background: "linear-gradient(135deg,#fde68a,#f59e0b)" }} /></div>
+                        </div>
+                        <div className="barRow">
+                          <div className="barMeta"><span>Failed</span><span>{dashboard.failedOrders} orders</span></div>
+                          <div className="barTrack"><div className="barFill" style={{ width: clampWidth(dashboard.failedOrders, dashboard.totalOrders), background: "linear-gradient(135deg,#fdba74,#f97316)" }} /></div>
                         </div>
                         <div className="barRow">
                           <div className="barMeta"><span>Cancelled</span><span>{dashboard.cancelledOrders} orders</span></div>
@@ -698,7 +882,8 @@ export default function AdminPortal({ authUser }) {
 
                       <div className="formGrid">
                         <input value={selectedProduct.name} placeholder="Name" onChange={(e) => setProducts((c) => c.map((p) => p.id === selectedProduct.id ? { ...p, name: e.target.value } : p))} />
-                        <input type="number" value={selectedProduct.price} placeholder="Price" onChange={(e) => setProducts((c) => c.map((p) => p.id === selectedProduct.id ? { ...p, price: e.target.value } : p))} />
+                        <input type="number" min="0" value={selectedProduct.flower_price ?? selectedProduct.flowerPrice ?? selectedProduct.price ?? ""} placeholder="Flower price" onChange={(e) => setProducts((c) => c.map((p) => p.id === selectedProduct.id ? { ...p, price: e.target.value, flower_price: e.target.value, flowerPrice: e.target.value } : p))} />
+                        <input type="number" min="0" value={selectedProduct.bouquet_price ?? selectedProduct.bouquetPrice ?? ""} placeholder="Bouquet price" onChange={(e) => setProducts((c) => c.map((p) => p.id === selectedProduct.id ? { ...p, bouquet_price: e.target.value, bouquetPrice: e.target.value } : p))} />
                         <input value={selectedProduct.category || ""} placeholder="Category" onChange={(e) => setProducts((c) => c.map((p) => p.id === selectedProduct.id ? { ...p, category: e.target.value } : p))} />
                         <textarea className="full" value={selectedProduct.description} placeholder="Description" onInput={autoResizeTextarea} onChange={(e) => { autoResizeTextarea(e); setProducts((c) => c.map((p) => p.id === selectedProduct.id ? { ...p, description: e.target.value } : p)); }} />
                       </div>
@@ -765,15 +950,23 @@ export default function AdminPortal({ authUser }) {
                             key={product.id}
                             type="button"
                             className="productItem"
-                            onClick={() => navigate(`/admin/products/${product.id}`)}
+                            onClick={() => {
+                              if (String(product.source || "").startsWith("mongo")) {
+                                setNotice("MongoDB-only products are visible here. Create or sync a Django product to edit it from this portal.");
+                                return;
+                              }
+                              navigate(`/admin/products/${product.id}`);
+                            }}
                           >
                             <div className="productNameBtn">{product.name}</div>
                             <div className="productMeta">
                               <span>#{product.id}</span>
-                              <span>{fmtMoney(product.price)}</span>
+                              <span>Flower {fmtMoney(product.flower_price ?? product.flowerPrice ?? product.price)}</span>
+                              <span>Bouquet {fmtMoney(product.bouquet_price ?? product.bouquetPrice ?? product.price)}</span>
                             </div>
                             <div className="productMeta">
                               <span>{product.category || "Uncategorized"}</span>
+                              <span>{product.source || "django"}</span>
                               <span>{String(product.description || "").length} chars</span>
                             </div>
                           </button>
@@ -853,23 +1046,45 @@ export default function AdminPortal({ authUser }) {
               {!loading && tab === "users" ? (
                 <div className="card">
                   <div className="section"><h2>User Manager And Staff Access</h2><p>Manage user details, active status, staff access, and group assignments.</p></div>
-                  <div className="tableWrap">
-                    <table className="table"><thead><tr><th>User</th><th>Name</th><th>Email</th><th>Flags</th><th>Groups</th><th>Actions</th></tr></thead><tbody>
+                  <div className="usersPanel">
+                    <div className="userList">
                       {users.map((user) => (
-                        <tr key={user.id}>
-                          <td className="stack"><strong>{user.username}</strong><span className="muted">Joined {fmtDate(user.date_joined)}</span></td>
-                          <td className="stack"><input value={user.first_name || ""} placeholder="First name" onChange={(e) => setUsers((c) => c.map((item) => item.id === user.id ? { ...item, first_name: e.target.value } : item))} /><input value={user.last_name || ""} placeholder="Last name" onChange={(e) => setUsers((c) => c.map((item) => item.id === user.id ? { ...item, last_name: e.target.value } : item))} /></td>
-                          <td><input value={user.email || ""} onChange={(e) => setUsers((c) => c.map((item) => item.id === user.id ? { ...item, email: e.target.value } : item))} /></td>
-                          <td className="stack">
-                            <label><input type="checkbox" checked={Boolean(user.is_active)} onChange={(e) => setUsers((c) => c.map((item) => item.id === user.id ? { ...item, is_active: e.target.checked } : item))} /> Active</label>
-                            <label><input type="checkbox" checked={Boolean(user.is_staff)} onChange={(e) => setUsers((c) => c.map((item) => item.id === user.id ? { ...item, is_staff: e.target.checked } : item))} /> Staff</label>
-                            <span className="muted">{user.is_superuser ? "Superuser" : "Regular account"}</span>
-                          </td>
-                          <td><select className="multi" multiple value={(user.groups || []).map((group) => String(group.id))} onChange={(e) => setUsers((c) => c.map((item) => item.id === user.id ? { ...item, groups: Array.from(e.target.selectedOptions).map((option) => ({ id: Number(option.value), name: option.label })) } : item))}>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></td>
-                          <td><button className="btn" type="button" disabled={saving === `user-${user.id}`} onClick={() => saveUser(user)}>{saving === `user-${user.id}` ? "Saving..." : "Save User"}</button></td>
-                        </tr>
+                        <article className="userCard" key={user.id}>
+                          <div className="userIdentity">
+                            <div className="userAvatar">{(user.username || user.email || "U").slice(0, 1).toUpperCase()}</div>
+                            <div className="userTitle">
+                              <strong>{user.username}</strong>
+                              <span className="muted">Joined {fmtDate(user.date_joined)}</span>
+                              <span className="muted userEmailValue">{user.email || "No email added"}</span>
+                            </div>
+                          </div>
+
+                          <div className="userEditGrid">
+                            <label className="field">
+                              <span>First name</span>
+                              <input value={user.first_name || ""} placeholder="First name" onChange={(e) => setUsers((c) => c.map((item) => item.id === user.id ? { ...item, first_name: e.target.value } : item))} />
+                            </label>
+                            <label className="field">
+                              <span>Last name</span>
+                              <input value={user.last_name || ""} placeholder="Last name" onChange={(e) => setUsers((c) => c.map((item) => item.id === user.id ? { ...item, last_name: e.target.value } : item))} />
+                            </label>
+                            <label className="field full">
+                              <span>Email</span>
+                              <input value={user.email || ""} placeholder="Email address" onChange={(e) => setUsers((c) => c.map((item) => item.id === user.id ? { ...item, email: e.target.value } : item))} />
+                            </label>
+                          </div>
+
+                          <div className="flagGroup">
+                            <span className="fieldLabel">Access flags</span>
+                            <label className="checkRow"><input type="checkbox" checked={Boolean(user.is_active)} onChange={(e) => setUsers((c) => c.map((item) => item.id === user.id ? { ...item, is_active: e.target.checked } : item))} /> Active</label>
+                            <label className="checkRow"><input type="checkbox" checked={Boolean(user.is_staff)} onChange={(e) => setUsers((c) => c.map((item) => item.id === user.id ? { ...item, is_staff: e.target.checked } : item))} /> Staff</label>
+                            <span className="accountBadge">{user.is_superuser ? "Superuser" : "Regular account"}</span>
+                          </div>
+
+                          <div className="userActions"><button className="btn" type="button" disabled={saving === `user-${user.id}`} onClick={() => saveUser(user)}>{saving === `user-${user.id}` ? "Saving..." : "Save User"}</button></div>
+                        </article>
                       ))}
-                    </tbody></table>
+                    </div>
                   </div>
                 </div>
               ) : null}
@@ -913,7 +1128,8 @@ export default function AdminPortal({ authUser }) {
                   <form className="card" onSubmit={createProduct}>
                     <div className="formGrid">
                       <input placeholder="Name" value={productForm.name} onChange={(e) => setProductForm((c) => ({ ...c, name: e.target.value }))} />
-                      <input type="number" placeholder="Price" value={productForm.price} onChange={(e) => setProductForm((c) => ({ ...c, price: e.target.value }))} />
+                      <input type="number" min="0" placeholder="Flower price" value={productForm.flower_price} onChange={(e) => setProductForm((c) => ({ ...c, flower_price: e.target.value }))} />
+                      <input type="number" min="0" placeholder="Bouquet price" value={productForm.bouquet_price} onChange={(e) => setProductForm((c) => ({ ...c, bouquet_price: e.target.value }))} />
                       <input placeholder="Category" value={productForm.category} onChange={(e) => setProductForm((c) => ({ ...c, category: e.target.value }))} />
                       <textarea className="full" placeholder="Description" value={productForm.description} onInput={autoResizeTextarea} onChange={(e) => { autoResizeTextarea(e); setProductForm((c) => ({ ...c, description: e.target.value })); }} />
                     </div>

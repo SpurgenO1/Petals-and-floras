@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from django.contrib.auth.models import User
 from django.utils import timezone
 
@@ -11,8 +12,17 @@ from .delivery import (
 class Product(models.Model):
     name = models.CharField(max_length=100)
     price = models.IntegerField()
+    flower_price = models.IntegerField(default=0)
+    bouquet_price = models.IntegerField(default=0)
     description = models.TextField()
     category = models.CharField(max_length=100, blank=True, default="")
+
+    def save(self, *args, **kwargs):
+        if not self.flower_price:
+            self.flower_price = int(self.price or 0)
+        if not self.price:
+            self.price = int(self.flower_price or 0)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
@@ -21,10 +31,12 @@ class Product(models.Model):
 class Order(models.Model):
     STATUS_PENDING = "Pending"
     STATUS_PAID = "Paid"
+    STATUS_FAILED = "Failed"
     STATUS_CANCELLED = "Cancelled"
     STATUS_CHOICES = [
         (STATUS_PENDING, "Pending"),
         (STATUS_PAID, "Paid"),
+        (STATUS_FAILED, "Failed"),
         (STATUS_CANCELLED, "Cancelled"),
     ]
     OCCASION_BIRTHDAY = "birthday"
@@ -64,6 +76,20 @@ class Order(models.Model):
     )
     delivery_status_updated_at = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["payment_order_id"],
+                condition=~Q(payment_order_id=""),
+                name="uniq_order_payment_order_id",
+            ),
+            models.UniqueConstraint(
+                fields=["payment_id"],
+                condition=~Q(payment_id=""),
+                name="uniq_order_payment_id",
+            ),
+        ]
 
     def __str__(self):
         return f"Order #{self.id} - {self.name}"

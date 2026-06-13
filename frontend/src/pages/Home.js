@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import DOMPurify from "dompurify";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import FrameAnimation from "../components/FrameAnimation";
@@ -27,6 +28,12 @@ const galleryItems = [
   { name: "Gold Strike Rose", image: goldStrikeRose },
   { name: "Hydrangea", image: hydrangea }
 ];
+
+const sanitizeText = (value) =>
+  DOMPurify.sanitize(String(value || ""), {
+    ALLOWED_TAGS: [],
+    ALLOWED_ATTR: [],
+  });
 
 function Home() {
   const [recentFeedback, setRecentFeedback] = useState([]);
@@ -207,17 +214,17 @@ function Home() {
               >
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", marginBottom: "0.75rem" }}>
                   <div>
-                    <p style={{ fontWeight: 700, marginBottom: "0.25rem" }}>{entry.user_name}</p>
+                    <p style={{ fontWeight: 700, marginBottom: "0.25rem" }}>{sanitizeText(entry.user_name)}</p>
                     <p style={{ opacity: 0.6, fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      {entry.target_type === "flower" && entry.product_name ? `Flower - ${entry.product_name}` : "Shop"}
+                      {entry.target_type === "flower" && entry.product_name ? `Flower - ${sanitizeText(entry.product_name)}` : "Shop"}
                     </p>
                   </div>
                   <div style={{ color: "#d64a6e", fontWeight: 700, whiteSpace: "nowrap" }}>
                     {"★".repeat(Number(entry.rating || 0))}
                   </div>
                 </div>
-                <h3 style={{ marginBottom: "0.65rem", color: "#d64a6e" }}>{entry.title}</h3>
-                <p style={{ opacity: 0.8, lineHeight: 1.7 }}>{entry.message}</p>
+                <h3 style={{ marginBottom: "0.65rem", color: "#d64a6e" }}>{sanitizeText(entry.title)}</h3>
+                <p style={{ opacity: 0.8, lineHeight: 1.7 }}>{sanitizeText(entry.message)}</p>
               </motion.div>
             ))}
           </div>

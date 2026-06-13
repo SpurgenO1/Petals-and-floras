@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter as Router, Route, Routes, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -67,8 +67,8 @@ function AppLayout({
               path="/login"
               element={<Login authUser={authUser} onAuthSuccess={handleAuthSuccess} />}
             />
-            <Route path="/admin" element={<AdminPortal authUser={authUser} />} />
-            <Route path="/admin/*" element={<AdminPortal authUser={authUser} />} />
+            <Route path="/admin" element={<AdminPortal authUser={authUser} onAuthSuccess={handleAuthSuccess} />} />
+            <Route path="/admin/*" element={<AdminPortal authUser={authUser} onAuthSuccess={handleAuthSuccess} />} />
           </Routes>
         </Suspense>
       </main>
@@ -79,14 +79,7 @@ function AppLayout({
 }
 
 function App() {
-  const [authUser, setAuthUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem("pf_auth_user");
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [authUser, setAuthUser] = useState(null);
   const [cart, setCart] = useState(() => {
     try {
       const saved = localStorage.getItem("pf_cart");
@@ -95,7 +88,6 @@ function App() {
       return [];
     }
   });
-  const initialAuthUserRef = useRef(authUser);
   const [showLoader, setShowLoader] = useState(true);
 
   useEffect(() => {
@@ -104,23 +96,9 @@ function App() {
 
   useEffect(() => {
     setRuntimeAuthUser(authUser);
-
-    try {
-      if (authUser) {
-        localStorage.setItem("pf_auth_user", JSON.stringify(authUser));
-      } else {
-        localStorage.removeItem("pf_auth_user");
-      }
-    } catch {
-      // Ignore storage failures and keep the in-memory auth state.
-    }
   }, [authUser]);
 
   useEffect(() => {
-    if (!initialAuthUserRef.current) {
-      return undefined;
-    }
-
     let mounted = true;
 
     getCurrentUser()

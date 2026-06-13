@@ -81,6 +81,8 @@ def build_product_document(product):
         "django_product_id": product.id,
         "name": product.name,
         "price": int(product.price),
+        "flower_price": int(product.flower_price or product.price or 0),
+        "bouquet_price": int(product.bouquet_price or product.flower_price or product.price or 0),
         "description": product.description,
         "category": product.category or "Floral",
         "old_price": None,

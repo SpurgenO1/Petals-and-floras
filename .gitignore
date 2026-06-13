@@ -1,4 +1,6 @@
 # Environment variables - NEVER commit these
+.env
+*.env
 backend/.env
 backend/.env.local
 backend/.env.*.local
@@ -27,6 +29,7 @@ build/
 *.db
 *.sqlite3
 *.sqlite
+db.sqlite3
 
 # Logs
 *.log
