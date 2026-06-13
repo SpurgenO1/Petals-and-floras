@@ -742,9 +742,9 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
         .chip,.tab,.btn,.btn2,.btnDanger{padding:.7rem 1rem}.tab{cursor:pointer}.tab.active,.btn{background:linear-gradient(135deg,#e8536d,#7b1a2e);color:#fff;font-weight:700;border:1px solid rgba(255,255,255,.08);box-shadow:0 10px 24px rgba(192,53,78,.28)}
         .btn2,.btnDanger{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.btn2{background:rgba(60,5,20,.55);color:rgba(255,255,255,.86)}.btnDanger{background:linear-gradient(135deg,#ef4444,#991b1b);border:none;color:#fff;font-weight:700}.msg{padding:.9rem 1rem}.err{color:#fecaca;background:rgba(120,15,30,.36);border-color:rgba(239,68,68,.28)}
         .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem}.metric{padding:1rem}.metric strong{font-size:1.6rem;display:block;color:#fff}.metric span,.metric small,.muted{color:rgba(255,255,255,.68)}
-        .section h2{margin:0;color:#fff}.section p{color:rgba(255,255,255,.68)}
+        .section{margin-bottom:1.25rem}.section h2{margin:0 0 .35rem 0;color:#fff}.section p{margin:0;color:rgba(255,255,255,.68)}
         .formGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.8rem}.full{grid-column:1/-1}
-        input,textarea,select{width:100%;padding:.7rem .8rem;outline:none}input::placeholder,textarea::placeholder{color:rgba(255,255,255,.48)}textarea{min-height:140px;resize:none;overflow:hidden}.tableWrap{overflow:auto}.table{width:100%;min-width:920px;border-collapse:collapse}.table th,.table td{padding:.8rem;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top;text-align:left}.table th{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+        input,textarea,select{width:100%;padding:.7rem .8rem;outline:none}input::placeholder,textarea::placeholder{color:rgba(255,255,255,.48)}textarea{min-height:140px;resize:none;overflow:hidden}.tableWrap{overflow:auto;margin-top:1.25rem}.table{width:100%;min-width:920px;border-collapse:collapse}.table th,.table td{padding:.8rem;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top;text-align:left}.table th{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.5)}
         .stack{display:grid;gap:.35rem}.multi{min-height:96px}.pill{display:inline-flex;padding:.28rem .65rem;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.84)}
         .heroGrid{display:grid;grid-template-columns:1.5fr 1fr;gap:1rem}.subGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-top:1rem}
         .chartCard{padding:1rem}.chartTitle{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;margin-bottom:.8rem}.chartTitle strong{font-size:1.05rem;color:#fff}
@@ -762,12 +762,6 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
         .detailCard{display:grid;gap:1rem}
         .detailHeader{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start}
         .detailHeader h3{margin:0;font-size:1.3rem}
-        .photoField{display:grid;grid-template-columns:minmax(160px,240px) 1fr;gap:1rem;align-items:start}
-        .photoPreview{width:100%;aspect-ratio:4/3;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.055);display:grid;place-items:center;color:rgba(255,255,255,.56);font-weight:700}
-        .photoPreview img{width:100%;height:100%;object-fit:cover;display:block}
-        .photoControls{display:grid;gap:.7rem}
-        .fileInput{cursor:pointer}
-        .photoHint{font-size:.86rem;color:rgba(255,255,255,.64);line-height:1.45}
         .usersPanel{display:grid;gap:1rem}
         .userList{display:grid;gap:.85rem}
         .userCard{display:grid;grid-template-columns:minmax(210px,.9fr) minmax(280px,1.35fr) minmax(210px,.85fr) minmax(150px,.55fr);gap:1rem;align-items:start;padding:1rem;border-radius:18px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055)}
@@ -1139,12 +1133,14 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
                     <table className="table"><thead><tr><th>Order</th><th>Customer</th><th>Delivery</th><th>Total</th><th>Items</th><th>Payment</th><th>Tracking</th><th>Created</th></tr></thead><tbody>
                       {orders.map((order) => (
                         <tr key={order.id}>
-                          <td className="stack"><strong>#{order.id}</strong><span className="muted">{order.user_email || "Guest checkout"}</span></td>
-                          <td className="stack"><strong>{order.customer_name}</strong><span className="muted">{order.address}</span></td>
-                          <td className="stack">
-                            <span>{order.delivery_date || "Date pending"}</span>
-                            <span className="muted">{order.delivery_slot_label || order.delivery_slot || "Slot pending"}</span>
-                            <span className="muted">{order.phone} {order.city} {order.pincode}</span>
+                          <td><div className="stack"><strong>#{order.id}</strong><span className="muted">{order.user_email || "Guest checkout"}</span></div></td>
+                          <td><div className="stack"><strong>{order.customer_name}</strong><span className="muted">{order.address}</span></div></td>
+                          <td>
+                            <div className="stack">
+                              <span>{order.delivery_date || "Date pending"}</span>
+                              <span className="muted">{order.delivery_slot_label || order.delivery_slot || "Slot pending"}</span>
+                              <span className="muted">{order.phone} {order.city} {order.pincode}</span>
+                            </div>
                           </td>
                           <td>{fmtMoney(order.total_amount)}</td><td>{Array.isArray(order.items) ? order.items.length : 0}</td>
                           <td><select value={order.status} onChange={(e) => changeOrderStatus(order.id, { status: e.target.value })} disabled={saving === `order-${order.id}`}>{orderStatuses.map((statusValue) => <option key={statusValue} value={statusValue}>{statusValue}</option>)}</select></td>
@@ -1165,9 +1161,9 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
                       {historyEntries.map((entry) => (
                         <tr key={entry.id}>
                           <td>#{entry.id}</td><td>{entry.source_order_id ? `#${entry.source_order_id}` : "-"}</td>
-                          <td className="stack"><strong>{entry.customer_name}</strong><span className="muted">{entry.user_email || "No linked account"}</span></td>
+                          <td><div className="stack"><strong>{entry.customer_name}</strong><span className="muted">{entry.user_email || "No linked account"}</span></div></td>
                           <td><span className="pill">{entry.status}</span></td>
-                          <td className="stack"><span className="pill">{entry.delivery_status_label || entry.delivery_status}</span><span className="muted">{entry.delivery_date || "-"} | {entry.delivery_slot_label || entry.delivery_slot || "-"}</span></td>
+                          <td><div className="stack"><span className="pill">{entry.delivery_status_label || entry.delivery_status}</span><span className="muted">{entry.delivery_date || "-"} | {entry.delivery_slot_label || entry.delivery_slot || "-"}</span></div></td>
                           <td>{fmtMoney(entry.total_amount)}</td><td>{fmtDate(entry.ordered_at)}</td><td>{fmtDate(entry.updated_at)}</td>
                         </tr>
                       ))}
@@ -1183,8 +1179,8 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
                     <table className="table"><thead><tr><th>Feedback</th><th>User</th><th>Target</th><th>Rating</th><th>Status</th><th>Created</th></tr></thead><tbody>
                       {feedbackEntries.map((entry) => (
                         <tr key={entry.id}>
-                          <td className="stack"><strong>{entry.title}</strong><span className="muted">{entry.message}</span></td>
-                          <td className="stack"><span>{entry.user_name}</span><span className="muted">{entry.user_email || "Guest"}</span></td>
+                          <td><div className="stack"><strong>{entry.title}</strong><span className="muted">{entry.message}</span></div></td>
+                          <td><div className="stack"><span>{entry.user_name}</span><span className="muted">{entry.user_email || "Guest"}</span></div></td>
                           <td>{entry.product_name || entry.target_type}</td><td>{entry.rating}/5</td>
                           <td><select value={entry.status} onChange={(e) => changeFeedbackStatus(entry.id, e.target.value)} disabled={saving === `feedback-${entry.id}`}>{feedbackStatuses.map((statusValue) => <option key={statusValue} value={statusValue}>{statusValue}</option>)}</select></td>
                           <td>{fmtDate(entry.created_at)}</td>
