@@ -328,8 +328,6 @@ function TiltCard({ children }) {
 }
 
 function ProductCard({ product, onOpenDetails }) {
-  const sourceLabel = product.isFromAdmin ? "Live item" : "Catalog item";
-
   return (
     <TiltCard>
       <div className="card">
@@ -349,7 +347,7 @@ function ProductCard({ product, onOpenDetails }) {
             <span>Bouquet: {formatPrice(product.bouquetPrice)}</span>
           </div>
           <div className="card-footer">
-            <span className="stock-note">{sourceLabel}</span>
+            <span className="stock-note">Catalog item</span>
             <motion.button
               type="button"
               className="btn-add"
