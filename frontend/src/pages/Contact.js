@@ -144,7 +144,7 @@ export default function Contact({ authUser = null }) {
   const infoCards = [
     { icon: "Phone", label: "Phone / WhatsApp", value: "+91 80558 95353", href: "tel:+918055895353", delay: 0 },
     { icon: "Mail", label: "Email", value: "petalsandflora@gmail.com", href: "mailto:petalsandflora@gmail.com", delay: 0.1 },
-    { icon: "City", label: "City", value: "Chennai, Tamil Nadu", href: null, delay: 0.2 },
+    { icon: "City", label: "City", value: "Chennai, Tamil Nadu", href: "https://www.google.com/maps?q=12.9272616,80.1131223&z=17&hl=en", delay: 0.2 },
     { icon: "Chat", label: "WhatsApp", value: "Chat with us instantly", href: "https://wa.me/918055895353", delay: 0.3 },
     { icon: "Insta", label: "Instagram", value: "@petalsandflora2725", href: "https://www.instagram.com/petalsandflora2725?igsh=a292dGx0bHBmZ3U5", delay: 0.4 },
   ];
@@ -759,13 +759,13 @@ export default function Contact({ authUser = null }) {
                 <div className="cn-address">
                   <p>
                     <strong>Petals & Flora</strong><br />
-                    West Tambaram,<br />
-                    Chennai, Tamil Nadu - 600 045<br />
+                    Chennai, Tamil Nadu<br />
+                    12°55'38.1"N 80°06'47.2"E<br />
                     <strong>India</strong>
                   </p>
                 </div>
                 <a
-                  href="https://maps.google.com/?q=Tambaram,Chennai"
+                  href="https://www.google.com/maps?q=12.9272616,80.1131223&z=17&hl=en"
                   target="_blank"
                   rel="noreferrer"
                   className="cn-social-btn"
