@@ -52,10 +52,42 @@ function TiltCard({ children, className = "" }) {
   );
 }
 
+const ICON_MAP = {
+  Phone: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+    </svg>
+  ),
+  Mail: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+      <polyline points="22,6 12,13 2,6"/>
+    </svg>
+  ),
+  City: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+      <circle cx="12" cy="10" r="3"/>
+    </svg>
+  ),
+  Chat: (
+    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/>
+    </svg>
+  ),
+  Insta: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+    </svg>
+  ),
+};
+
 function InfoCard({ icon, label, value, href, delay }) {
   const content = (
     <div className="cn-info-card">
-      <div className="cn-info-icon">{icon}</div>
+      <div className="cn-info-icon">{ICON_MAP[icon] || icon}</div>
       <div className="cn-info-body">
         <p className="cn-info-label">{label}</p>
         <p className="cn-info-value">{value}</p>
@@ -211,7 +243,8 @@ export default function Contact({ authUser = null }) {
             radial-gradient(ellipse 60% 55% at 80% 90%, rgba(123,26,46,0.48) 0%, transparent 55%),
             radial-gradient(ellipse 100% 100% at 50% 50%, #1a0510 0%, #0d0007 100%);
           position: relative;
-          overflow: hidden;
+          overflow-x: hidden;
+          overflow-y: auto;
           font-family: 'Jost', sans-serif;
           padding: calc(var(--nav-height) + 2.5rem) 2rem 6rem;
         }
@@ -342,13 +375,14 @@ export default function Contact({ authUser = null }) {
         }
         .cn-info-value {
           font-family: 'Jost', sans-serif;
-          font-size: clamp(0.84rem, 1.02vw, 0.98rem);
+          font-size: clamp(0.78rem, 0.95vw, 0.92rem);
           font-weight: 500;
           letter-spacing: 0.01em;
           color: rgba(255,255,255,0.96);
           line-height: 1.5;
           text-wrap: balance;
-          overflow-wrap: anywhere;
+          overflow-wrap: break-word;
+          word-break: break-word;
         }
         .cn-layout {
           position: relative;
@@ -617,7 +651,7 @@ export default function Contact({ authUser = null }) {
           font-weight: 300;
         }
         .cn-address strong { color: var(--rose-light); font-weight: 400; }
-        @media (max-width: 1080px) {
+        @media (max-width: 1200px) {
           .cn-cards-grid { grid-template-columns: repeat(3, 1fr); }
         }
         @media (max-width: 860px) {
