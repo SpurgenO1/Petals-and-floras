@@ -452,6 +452,9 @@ a {
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
   transition: var(--transition);
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
 }
 
 .premium-card:hover {

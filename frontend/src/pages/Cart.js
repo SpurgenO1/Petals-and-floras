@@ -69,7 +69,13 @@ function CartItem({ item, onRemove, onUpdateQuantity, index }) {
     >
       {/* flower icon + name */}
       <div className="ct-item-left">
-        <div className="ct-flower-dot">🌸</div>
+        <div className="ct-flower-dot">
+          {item.image ? (
+            <img src={item.image} alt={item.name} className="ct-flower-img" />
+          ) : (
+            "🌸"
+          )}
+        </div>
         <div className="ct-item-info">
           <p className="ct-item-name">{item.name}</p>
           <p className="ct-item-cat">{item.purchaseType ? `${item.purchaseType[0].toUpperCase()}${item.purchaseType.slice(1)}` : "Flower"}</p>
@@ -246,6 +252,10 @@ export default function Cart({ cart = [], removeFromCart = () => {}, updateCartQ
           border-radius: 50%;
           display: flex; align-items: center; justify-content: center;
           font-size: 1.1rem;
+          overflow: hidden;
+        }
+        .ct-flower-img {
+          width: 100%; height: 100%; object-fit: cover; display: block;
         }
 
         .ct-item-name {
