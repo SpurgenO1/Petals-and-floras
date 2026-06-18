@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name="order",
-            name="mongo_order_id",
+            name="legacy_order_id",
             field=models.CharField(blank=True, default="", max_length=100),
         ),
     ]

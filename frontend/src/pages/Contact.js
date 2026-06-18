@@ -652,7 +652,7 @@ export default function Contact({ authUser = null }) {
         >
           <p className="cn-eyebrow">Share what you felt about us</p>
           <h2 className="cn-title">Flower <span>Feedback</span></h2>
-          <p className="cn-sub">Users can review the shop or a specific flower, and every entry is saved to admin and MongoDB.</p>
+          <p className="cn-sub">Users can review the shop or a specific flower, and every entry is saved to the store admin.</p>
           <div className="cn-deco"><span>Rose</span></div>
         </motion.div>
 

@@ -15,7 +15,7 @@ admin.site.index_title = "Users, products, and order history"
 class OrderInline(admin.TabularInline):
     model = Order
     extra = 0
-    fields = ("id", "status", "delivery_status", "total_amount", "mongo_order_id", "created_at")
+    fields = ("id", "status", "delivery_status", "total_amount", "legacy_order_id", "created_at")
     readonly_fields = fields
     can_delete = False
     show_change_link = True
@@ -24,7 +24,7 @@ class OrderInline(admin.TabularInline):
 class OrderHistoryInline(admin.TabularInline):
     model = OrderHistory
     extra = 0
-    fields = ("id", "status", "delivery_status", "total_amount", "mongo_order_id", "ordered_at")
+    fields = ("id", "status", "delivery_status", "total_amount", "legacy_order_id", "ordered_at")
     readonly_fields = fields
     can_delete = False
     show_change_link = True
@@ -57,7 +57,7 @@ class OrderAdmin(admin.ModelAdmin):
         "delivery_slot_badge",
         "total_amount",
         "item_count",
-        "mongo_order_id",
+        "legacy_order_id",
         "created_at",
     )
     list_filter = ("status", "delivery_status", "same_day_delivery", "created_at")
@@ -67,11 +67,11 @@ class OrderAdmin(admin.ModelAdmin):
         "city",
         "payment_order_id",
         "payment_id",
-        "mongo_order_id",
+        "legacy_order_id",
         "user__username",
         "user__email",
     )
-    readonly_fields = ("created_at", "mongo_order_id", "delivery_status_updated_at")
+    readonly_fields = ("created_at", "legacy_order_id", "delivery_status_updated_at")
     date_hierarchy = "created_at"
     list_select_related = ("user",)
     ordering = ("-created_at",)
@@ -100,7 +100,7 @@ class OrderHistoryAdmin(admin.ModelAdmin):
         "status",
         "delivery_status",
         "total_amount",
-        "mongo_order_id",
+        "legacy_order_id",
         "ordered_at",
     )
     list_filter = ("status", "delivery_status", "same_day_delivery", "ordered_at")
@@ -110,11 +110,11 @@ class OrderHistoryAdmin(admin.ModelAdmin):
         "city",
         "payment_order_id",
         "payment_id",
-        "mongo_order_id",
+        "legacy_order_id",
         "user__username",
         "user__email",
     )
-    readonly_fields = ("ordered_at", "updated_at", "mongo_order_id")
+    readonly_fields = ("ordered_at", "updated_at", "legacy_order_id")
     list_select_related = ("user", "source_order")
     ordering = ("-ordered_at",)
 

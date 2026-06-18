@@ -593,7 +593,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
             isFromAdmin: p.isFromAdmin,
           })));
           if (nextSignature !== productsSignatureRef.current) setProducts(mergedProducts);
-          setError(mergedProducts.length > 0 ? "" : "No products found in MongoDB or Django admin.");
+          setError(mergedProducts.length > 0 ? "" : "No products found in the store catalog.");
           lastFetchTimeRef.current = now;
         }
       } catch {
@@ -601,7 +601,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
           if (!hasProductsRef.current) setProducts(fallbackCatalogProducts);
           setError(hasProductsRef.current
             ? "Live sync is temporarily unavailable. Current products will refresh when the backend reconnects."
-            : "Showing catalog fallback. Start the backend server to load live products from MongoDB or Django admin."
+            : "Showing catalog fallback. Start the backend server to load live products from the store catalog."
           );
         }
       } finally {

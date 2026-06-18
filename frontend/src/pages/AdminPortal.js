@@ -810,7 +810,7 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
             <form className="card adminLoginCard" onSubmit={handleAdminLogin}>
               <div className="section">
                 <h2>Admin Data Sign In</h2>
-                <p>Use an account with Active, Staff status, and Superuser status enabled to access Django administrator and MongoDB data.</p>
+                <p>Use an account with Active, Staff status, and Superuser status enabled to access store administration data.</p>
               </div>
               <input
                 type="text"
@@ -1097,10 +1097,6 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
                             type="button"
                             className="productItem"
                             onClick={() => {
-                              if (String(product.source || "").startsWith("mongo")) {
-                                setNotice("MongoDB-only products are visible here. Create or sync a Django product to edit it from this portal.");
-                                return;
-                              }
                               navigate(`/admin/products/${product.id}`);
                             }}
                           >

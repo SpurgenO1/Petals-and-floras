@@ -1,19 +1,8 @@
 from django.db.models.signals import post_delete, post_save
-from django.contrib.auth.models import User
 from django.dispatch import receiver
-from pymongo.errors import PyMongoError
 
 from .delivery import get_delivery_status_label
-from .models import Feedback, Order, OrderHistory, OrderTrackingEvent, Product
-from .mongo import (
-    delete_feedback_from_mongo,
-    delete_product_from_mongo,
-    delete_user_from_mongo,
-    sync_feedback_to_mongo,
-    sync_order_history_to_mongo,
-    sync_product_to_mongo,
-    sync_user_to_mongo,
-)
+from .models import Order, OrderHistory, OrderTrackingEvent
 
 
 def upsert_order_history(order):
@@ -28,7 +17,7 @@ def upsert_order_history(order):
         "total_amount": order.total_amount,
         "payment_order_id": order.payment_order_id,
         "payment_id": order.payment_id,
-        "mongo_order_id": order.mongo_order_id,
+        "legacy_order_id": order.legacy_order_id,
         "delivery_date": order.delivery_date,
         "delivery_slot": order.delivery_slot,
         "same_day_delivery": order.same_day_delivery,
@@ -43,38 +32,6 @@ def upsert_order_history(order):
     )
 
 
-@receiver(post_save, sender=Product)
-def sync_product_after_save(sender, instance, **kwargs):
-    try:
-        sync_product_to_mongo(instance)
-    except PyMongoError:
-        pass
-
-
-@receiver(post_delete, sender=Product)
-def sync_product_after_delete(sender, instance, **kwargs):
-    try:
-        delete_product_from_mongo(instance)
-    except PyMongoError:
-        pass
-
-
-@receiver(post_save, sender=User)
-def sync_user_after_save(sender, instance, **kwargs):
-    try:
-        sync_user_to_mongo(instance)
-    except PyMongoError:
-        pass
-
-
-@receiver(post_delete, sender=User)
-def sync_user_after_delete(sender, instance, **kwargs):
-    try:
-        delete_user_from_mongo(instance)
-    except PyMongoError:
-        pass
-
-
 @receiver(post_save, sender=Order)
 def sync_order_history_after_save(sender, instance, **kwargs):
     upsert_order_history(instance)
@@ -85,32 +42,8 @@ def sync_order_history_after_save(sender, instance, **kwargs):
             title=get_delivery_status_label(instance.delivery_status) or "Order update",
             description="Your floral order has been confirmed and queued for our design studio.",
         )
-    try:
-        sync_order_history_to_mongo(instance)
-    except PyMongoError:
-        pass
 
 
 @receiver(post_save, sender=OrderHistory)
 def sync_django_order_history_after_save(sender, instance, **kwargs):
-    if instance.source_order_id:
-        try:
-            sync_order_history_to_mongo(instance.source_order)
-        except PyMongoError:
-            pass
-
-
-@receiver(post_save, sender=Feedback)
-def sync_feedback_after_save(sender, instance, **kwargs):
-    try:
-        sync_feedback_to_mongo(instance)
-    except PyMongoError:
-        pass
-
-
-@receiver(post_delete, sender=Feedback)
-def sync_feedback_after_delete(sender, instance, **kwargs):
-    try:
-        delete_feedback_from_mongo(instance)
-    except PyMongoError:
-        pass
+    return None
