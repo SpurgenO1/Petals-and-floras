@@ -503,10 +503,9 @@ export default function About() {
                   <div className="ab-team-layout">
                     <div className="ab-team-img-wrap">
                       <img
-                        src="/team-image.png"
+                        src="/team-image.jpg"
                         alt="Our florist team"
                         className="ab-team-img"
-                        style={{ objectFit: "contain", background: "#2d5a27", padding: "1rem" }}
                       />
                     </div>
                     <div className="ab-team-text">
