@@ -987,15 +987,60 @@ def admin_order_detail(request, order_id):
     return Response({"message": "Order updated", "order": serialize_order(order)})
 
 
-@api_view(["GET"])
+@api_view(["GET", "POST", "DELETE"])
 @throttle_classes([AuthUserRateThrottle])
 def admin_order_history(request):
     _, denied_response = get_staff_user(request)
     if denied_response is not None:
         return denied_response
 
-    history_entries = OrderHistory.objects.select_related("user", "source_order").order_by("-ordered_at", "-id")[:200]
-    return Response({"results": [serialize_order_history(entry) for entry in history_entries]})
+    if request.method == "GET":
+        history_entries = OrderHistory.objects.select_related("user", "source_order").order_by("-ordered_at", "-id")[:200]
+        return Response({"results": [serialize_order_history(entry) for entry in history_entries]})
+
+    elif request.method == "POST":
+        customer_name = sanitize_string(request.data.get("customer_name", ""), 100)
+        if not customer_name:
+            return Response({"error": "Customer name is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        status_val = request.data.get("status", Order.STATUS_PENDING)
+        delivery_status_val = request.data.get("delivery_status", Order.DELIVERY_STATUS_ORDER_PLACED)
+        total_amount = int(request.data.get("total_amount") or 0)
+        phone = sanitize_string(request.data.get("phone", ""), 15)
+        city = sanitize_string(request.data.get("city", ""), 50)
+        pincode = sanitize_string(request.data.get("pincode", ""), 10)
+        gift_message = sanitize_string(request.data.get("gift_message", ""), 1000)
+        occasion = sanitize_string(request.data.get("occasion", ""), 30)
+        same_day_delivery = bool(request.data.get("same_day_delivery"))
+        
+        # Parse items (can be custom JSON list)
+        items = request.data.get("items") or []
+        if not isinstance(items, list):
+            items = []
+
+        entry = OrderHistory.objects.create(
+            customer_name=customer_name,
+            phone=phone,
+            city=city,
+            pincode=pincode,
+            status=status_val,
+            delivery_status=delivery_status_val,
+            total_amount=total_amount,
+            gift_message=gift_message,
+            occasion=occasion,
+            same_day_delivery=same_day_delivery,
+            items=items,
+            ordered_at=timezone.now(),
+        )
+        return Response({"message": "Order history entry created", "entry": serialize_order_history(entry)}, status=status.HTTP_201_CREATED)
+
+    elif request.method == "DELETE":
+        ids = request.data.get("ids") or []
+        if not ids or not isinstance(ids, list):
+            return Response({"error": "A list of IDs to delete is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        deleted_count, _ = OrderHistory.objects.filter(id__in=ids).delete()
+        return Response({"message": f"Successfully deleted {deleted_count} order history entries"})
 
 
 @api_view(["GET"])

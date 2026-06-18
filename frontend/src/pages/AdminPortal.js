@@ -154,8 +154,22 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
   const [overview, setOverview] = useState(null);
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderStatusFilter, setOrderStatusFilter] = useState("all");
+  const [orderDeliveryFilter, setOrderDeliveryFilter] = useState("all");
+  const [orderSort, setOrderSort] = useState("newest");
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [historyEntries, setHistoryEntries] = useState([]);
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyStatusFilter, setHistoryStatusFilter] = useState("all");
+  const [historyDeliveryFilter, setHistoryDeliveryFilter] = useState("all");
+  const [historySameDayFilter, setHistorySameDayFilter] = useState("all");
+  const [historySort, setHistorySort] = useState("newest");
+
   const [feedbackEntries, setFeedbackEntries] = useState([]);
+  const [feedbackStatusFilter, setFeedbackStatusFilter] = useState("all");
+  const [feedbackRatingFilter, setFeedbackRatingFilter] = useState("all");
+  const [feedbackSearch, setFeedbackSearch] = useState("");
   const [users, setUsers] = useState([]);
   const [groups, setGroups] = useState([]);
   const [productForm, setProductForm] = useState(emptyProduct);
@@ -299,6 +313,285 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
         }
       });
   }, [productCategoryFilter, productSearch, productSort, products]);
+
+  const filteredOrders = useMemo(() => {
+    let result = Array.isArray(orders) ? [...orders] : [];
+
+    // 1. Search Filter
+    if (orderSearch.trim()) {
+      const q = orderSearch.toLowerCase();
+      result = result.filter(
+        (o) =>
+          String(o.id).includes(q) ||
+          String(o.customer_name || "").toLowerCase().includes(q) ||
+          String(o.user_email || "").toLowerCase().includes(q) ||
+          String(o.phone || "").toLowerCase().includes(q) ||
+          String(o.address || "").toLowerCase().includes(q) ||
+          String(o.city || "").toLowerCase().includes(q) ||
+          String(o.pincode || "").toLowerCase().includes(q)
+      );
+    }
+
+    // 2. Status Filter
+    if (orderStatusFilter !== "all") {
+      result = result.filter((o) => o.status === orderStatusFilter);
+    }
+
+    // 3. Delivery Status Filter
+    if (orderDeliveryFilter !== "all") {
+      result = result.filter((o) => o.delivery_status === orderDeliveryFilter);
+    }
+
+    // 4. Sort
+    if (orderSort === "newest") {
+      result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    } else if (orderSort === "oldest") {
+      result.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    } else if (orderSort === "amount_desc") {
+      result.sort((a, b) => b.total_amount - a.total_amount);
+    } else if (orderSort === "amount_asc") {
+      result.sort((a, b) => a.total_amount - b.total_amount);
+    }
+
+    return result;
+  }, [orders, orderSearch, orderStatusFilter, orderDeliveryFilter, orderSort]);
+
+  const exportOrdersToCSV = () => {
+    if (!filteredOrders.length) return;
+    const headers = [
+      "Order ID", "Customer Name", "Email", "Phone", "Address", "City", "Pincode",
+      "Total Amount (INR)", "Status", "Delivery Status", "Delivery Date", "Delivery Slot",
+      "Same Day Delivery", "Occasion", "Gift Message", "Payment ID", "Payment Order ID", "Created At"
+    ];
+
+    const rows = filteredOrders.map(o => [
+      `#${o.id}`,
+      o.customer_name || "",
+      o.user_email || "Guest",
+      o.phone || "",
+      o.address ? o.address.replace(/"/g, '""').replace(/\n/g, ' ') : "",
+      o.city || "",
+      o.pincode || "",
+      o.total_amount,
+      o.status,
+      o.delivery_status_label || o.delivery_status,
+      o.delivery_date || "",
+      o.delivery_slot_label || o.delivery_slot || "",
+      o.same_day_delivery ? "Yes" : "No",
+      o.occasion || "",
+      o.gift_message ? o.gift_message.replace(/"/g, '""').replace(/\n/g, ' ') : "",
+      o.payment_id || "",
+      o.payment_order_id || "",
+      o.created_at
+    ]);
+
+    const csvContent = "\uFEFF" 
+      + [headers.join(","), ...rows.map(e => e.map(val => `"${val}"`).join(","))].join("\n");
+    
+    const encodedUri = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `orders_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const printOrderReceipt = (order) => {
+    const printWindow = window.open("", "_blank");
+    const itemsHtml = (order.items || []).map(item => {
+      const price = Number(item.price || item.flower_price || item.bouquet_price || 0);
+      const qty = Number(item.qty || item.quantity || 1);
+      return `
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;">
+            <div style="font-weight: bold; color: #1a0510;">${item.name}</div>
+            <div style="font-size: 0.85em; color: #666; margin-top: 2px;">Category: ${item.category || 'Flower'} | Type: ${item.purchaseType || 'flower'}</div>
+          </td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center; color: #1a0510;">${qty}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right; color: #1a0510;">Rs. ${price.toLocaleString()}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold; color: #1a0510;">Rs. ${(price * qty).toLocaleString()}</td>
+        </tr>
+      `;
+    }).join("");
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Order Receipt #${order.id}</title>
+          <style>
+            body { font-family: 'Jost', sans-serif, system-ui; color: #333; padding: 30px; line-height: 1.5; background-color: #fff; }
+            .receipt-container { max-width: 800px; margin: 0 auto; border: 1px solid #eaeaea; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+            .header { border-bottom: 2px solid #c0354e; padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .header h2 { margin: 0; color: #c0354e; font-size: 1.8em; }
+            .header p { margin: 5px 0 0 0; color: #666; font-size: 0.9em; }
+            .section-title { font-size: 1.1em; color: #7b1a2e; margin-bottom: 10px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 25px; }
+            .info-block p { margin: 6px 0; font-size: 0.95em; color: #444; }
+            .info-block strong { color: #1a0510; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            th { background: #fbfbfb; padding: 10px; text-align: left; color: #7b1a2e; font-size: 0.9em; text-transform: uppercase; border-bottom: 1px solid #eee; }
+            .total-section { text-align: right; margin-top: 25px; border-top: 2px solid #eee; padding-top: 15px; }
+            .total-section h3 { margin: 0; color: #c0354e; font-size: 1.5em; }
+            .gift-section { background: #fff5f6; border: 1px solid #ffd3d9; padding: 20px; border-radius: 8px; margin-bottom: 25px; position: relative; }
+            .gift-section::before { content: "❀"; position: absolute; right: 20px; bottom: 5px; font-size: 4em; color: rgba(192, 53, 78, 0.05); }
+            .gift-section p { margin: 0 0 8px 0; color: #7b1a2e; font-weight: bold; }
+            .gift-text { font-style: italic; font-size: 1.1em; color: #c0354e; line-height: 1.6; margin: 0 !important; }
+            @media print {
+              body { padding: 0; background: none; }
+              .receipt-container { border: none; box-shadow: none; padding: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="receipt-container">
+            <div class="header">
+              <div>
+                <h2>Petals & Flora</h2>
+                <p>Premium Floral Fulfillments & Bouquets</p>
+              </div>
+              <div style="text-align: right;">
+                <p style="font-size: 1.1em; font-weight: bold; color: #1a0510; margin: 0;">RECEIPT #${order.id}</p>
+                <p style="margin: 2px 0 0 0;">Date: ${new Date(order.created_at).toLocaleDateString('en-IN')}</p>
+              </div>
+            </div>
+            
+            <div class="grid">
+              <div class="info-block">
+                <div class="section-title">Customer Contact</div>
+                <p><strong>Name:</strong> ${order.customer_name}</p>
+                <p><strong>Phone:</strong> ${order.phone}</p>
+                <p><strong>Email:</strong> ${order.user_email || 'Guest checkout'}</p>
+              </div>
+              <div class="info-block">
+                <div class="section-title">Delivery Details</div>
+                <p><strong>Scheduled Date:</strong> ${order.delivery_date || 'Date pending'}</p>
+                <p><strong>Time Slot:</strong> ${order.delivery_slot_label || order.delivery_slot || 'Slot pending'}</p>
+                <p><strong>Address:</strong> ${order.address}, ${order.city} - ${order.pincode}</p>
+              </div>
+            </div>
+
+            ${order.gift_message ? `
+            <div class="gift-section">
+              <p>Occasion Card: ${order.occasion ? order.occasion.replace(/_/g, " ").toUpperCase() : 'Gifting Moment'}</p>
+              <div class="gift-text">"${order.gift_message}"</div>
+            </div>
+            ` : ""}
+
+            <div class="section-title">Purchased Items</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Item Details</th>
+                  <th style="text-align: center;">Qty</th>
+                  <th style="text-align: right;">Unit Price</th>
+                  <th style="text-align: right;">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+            </table>
+            
+            <div class="total-section">
+              <p style="margin: 0 0 5px 0; color: #666; font-size: 0.9em;">Payment Status: <strong>${order.status}</strong></p>
+              <h3>Total Paid: Rs. ${Number(order.total_amount).toLocaleString()}</h3>
+            </div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const filteredHistory = useMemo(() => {
+    let result = Array.isArray(historyEntries) ? [...historyEntries] : [];
+
+    // 1. Search Filter
+    if (historySearch.trim()) {
+      const q = historySearch.toLowerCase();
+      result = result.filter(
+        (e) =>
+          String(e.id).includes(q) ||
+          String(e.customer_name || "").toLowerCase().includes(q) ||
+          String(e.user_email || "").toLowerCase().includes(q) ||
+          String(e.phone || "").toLowerCase().includes(q) ||
+          String(e.city || "").toLowerCase().includes(q) ||
+          String(e.pincode || "").toLowerCase().includes(q)
+      );
+    }
+
+    // 2. Status Filter
+    if (historyStatusFilter !== "all") {
+      result = result.filter((e) => e.status === historyStatusFilter);
+    }
+
+    // 3. Delivery Status Filter
+    if (historyDeliveryFilter !== "all") {
+      result = result.filter((e) => e.delivery_status === historyDeliveryFilter);
+    }
+
+    // 4. Same-Day Delivery Filter
+    if (historySameDayFilter !== "all") {
+      const isSameDay = historySameDayFilter === "yes";
+      result = result.filter((e) => e.same_day_delivery === isSameDay);
+    }
+
+    // 5. Sort (ordered_at / date)
+    if (historySort === "newest") {
+      result.sort((a, b) => new Date(b.ordered_at) - new Date(a.ordered_at));
+    } else if (historySort === "oldest") {
+      result.sort((a, b) => new Date(a.ordered_at) - new Date(b.ordered_at));
+    } else if (historySort === "amount_desc") {
+      result.sort((a, b) => b.total_amount - a.total_amount);
+    } else if (historySort === "amount_asc") {
+      result.sort((a, b) => a.total_amount - b.total_amount);
+    }
+
+    return result;
+  }, [historyEntries, historySearch, historyStatusFilter, historyDeliveryFilter, historySameDayFilter, historySort]);
+
+  const filteredFeedback = useMemo(() => {
+    let result = [...feedbackEntries];
+
+    // 1. Status Filter
+    if (feedbackStatusFilter !== "all") {
+      result = result.filter((entry) => entry.status === feedbackStatusFilter);
+    }
+
+    // 2. Rating Filter
+    if (feedbackRatingFilter !== "all") {
+      result = result.filter((entry) => String(entry.rating) === feedbackRatingFilter);
+    }
+
+    // 3. Search Filter
+    if (feedbackSearch.trim()) {
+      const q = feedbackSearch.toLowerCase();
+      result = result.filter(
+        (entry) =>
+          (entry.title && entry.title.toLowerCase().includes(q)) ||
+          (entry.message && entry.message.toLowerCase().includes(q)) ||
+          (entry.user_name && entry.user_name.toLowerCase().includes(q)) ||
+          (entry.user_email && entry.user_email.toLowerCase().includes(q)) ||
+          (entry.product_name && entry.product_name.toLowerCase().includes(q)) ||
+          (entry.target_type && entry.target_type.toLowerCase().includes(q))
+      );
+    }
+
+    // Sort by created_at newest first
+    result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    return result;
+  }, [feedbackEntries, feedbackStatusFilter, feedbackRatingFilter, feedbackSearch]);
+
+
+
+
 
   const loadAll = async ({ background = false } = {}) => {
     if (!background) {
@@ -786,10 +1079,189 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
         .adminLoginCard p{margin:0;color:rgba(255,255,255,.68)}
         input:focus,textarea:focus,select:focus{border-color:rgba(232,83,109,.8);box-shadow:0 0 0 3px rgba(232,83,109,.14);background:rgba(255,255,255,.08)}
         select option{background:#2d0616;color:#fff}
-        @media (max-width:980px){.heroGrid{grid-template-columns:1fr}}
-        @media (max-width:1100px){.userCard{grid-template-columns:1fr 1.35fr}.userActions .btn{width:auto;min-width:180px}}
-        @media (max-width:820px){.productToolbar{grid-template-columns:1fr}}
-        @media (max-width:720px){.userCard,.userEditGrid,.photoField{grid-template-columns:1fr}.userActions .btn{width:100%}}
+
+        /* Enhanced Admin Order View Styles */
+        .orderToolbar {
+          display: grid;
+          grid-template-columns: minmax(240px, 1.5fr) repeat(3, minmax(180px, 1fr)) auto;
+          gap: 0.8rem;
+          margin-top: 1rem;
+          margin-bottom: 1.25rem;
+        }
+        .modalOverlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 2, 10, 0.8);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          z-index: 999;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 1.5rem;
+        }
+        .modalContent {
+          width: min(850px, 100%);
+          max-height: 90vh;
+          background: linear-gradient(135deg, #230517, #0d0007);
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          border-radius: 24px;
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(192, 53, 78, 0.2);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          position: relative;
+        }
+        .modalHeader {
+          padding: 1.25rem 1.5rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .modalHeader h3 {
+          margin: 0;
+          font-size: 1.35rem;
+          color: #fff;
+        }
+        .modalBody {
+          padding: 1.5rem;
+          overflow-y: auto;
+          display: grid;
+          gap: 1.5rem;
+        }
+        .modalFooter {
+          padding: 1rem 1.5rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.8rem;
+          background: rgba(0, 0, 0, 0.25);
+        }
+        .detailGrid {
+          display: grid;
+          grid-template-columns: 1.2fr 1fr;
+          gap: 1.5rem;
+        }
+        .detailSection {
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 16px;
+          padding: 1.1rem;
+        }
+        .detailSection h4 {
+          margin: 0 0 0.8rem 0;
+          font-size: 0.95rem;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: rgba(255, 255, 255, 0.5);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          padding-bottom: 0.4rem;
+        }
+        .itemRow {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          padding: 0.75rem 0;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .itemRow:last-child {
+          border-bottom: none;
+        }
+        .itemImage {
+          width: 50px;
+          height: 50px;
+          border-radius: 10px;
+          object-fit: cover;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .itemInfo {
+          flex: 1;
+          min-width: 0;
+        }
+        .itemInfo strong {
+          display: block;
+          font-size: 0.95rem;
+          color: #fff;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .itemInfo span {
+          font-size: 0.82rem;
+          color: rgba(255, 255, 255, 0.5);
+        }
+        .itemTotal {
+          text-align: right;
+          font-size: 0.95rem;
+          color: #fff;
+          font-weight: 600;
+        }
+        .infoList {
+          display: grid;
+          gap: 0.6rem;
+        }
+        .infoRow {
+          display: flex;
+          justify-content: space-between;
+          gap: 1rem;
+          font-size: 0.92rem;
+        }
+        .infoLabel {
+          color: rgba(255, 255, 255, 0.54);
+        }
+        .infoValue {
+          color: #fff;
+          text-align: right;
+          font-weight: 500;
+        }
+        .giftMessageCard {
+          background: radial-gradient(circle at 10% 10%, rgba(232, 83, 109, 0.15), transparent), rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(232, 83, 109, 0.3);
+          border-radius: 16px;
+          padding: 1.1rem;
+          position: relative;
+          overflow: hidden;
+        }
+        .giftMessageCard::before {
+          content: "❀";
+          position: absolute;
+          right: 10px;
+          bottom: -15px;
+          font-size: 5rem;
+          color: rgba(232, 83, 109, 0.08);
+          pointer-events: none;
+        }
+        .giftMessageText {
+          font-style: italic;
+          color: #fca5a5;
+          line-height: 1.6;
+          margin-top: 0.4rem;
+        }
+        .badge {
+          display: inline-flex;
+          padding: 0.25rem 0.55rem;
+          border-radius: 8px;
+          font-size: 0.78rem;
+          font-weight: 700;
+          text-transform: uppercase;
+        }
+        .badge.pending { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
+        .badge.paid { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge.failed { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge.cancelled { background: rgba(156, 163, 175, 0.15); color: #9ca3af; border: 1px solid rgba(156, 163, 175, 0.3); }
+
+        @media (max-width:980px){
+          .heroGrid{grid-template-columns:1fr}
+          .orderToolbar{grid-template-columns:1fr 1fr}
+        }
+        @media (max-width:768px){
+          .detailGrid{grid-template-columns:1fr}
+        }
+        @media (max-width:640px){
+          .orderToolbar{grid-template-columns:1fr}
+        }
       `}</style>
       <section className="ap">
         <div className="petals-layer">
@@ -1123,47 +1595,278 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
               ) : null}
 
               {!loading && tab === "orders" ? (
-                <div className="card">
-                  <div className="section"><h2>Manage Orders</h2><p>Review payment state, scheduled delivery windows, and bouquet tracking progress.</p></div>
-                  <div className="tableWrap">
-                    <table className="table"><thead><tr><th>Order</th><th>Customer</th><th>Delivery</th><th>Total</th><th>Items</th><th>Payment</th><th>Tracking</th><th>Created</th></tr></thead><tbody>
-                      {orders.map((order) => (
-                        <tr key={order.id}>
-                          <td><div className="stack"><strong>#{order.id}</strong><span className="muted">{order.user_email || "Guest checkout"}</span></div></td>
-                          <td><div className="stack"><strong>{order.customer_name}</strong><span className="muted">{order.address}</span></div></td>
-                          <td>
-                            <div className="stack">
-                              <span>{order.delivery_date || "Date pending"}</span>
-                              <span className="muted">{order.delivery_slot_label || order.delivery_slot || "Slot pending"}</span>
-                              <span className="muted">{order.phone} {order.city} {order.pincode}</span>
-                            </div>
-                          </td>
-                          <td>{fmtMoney(order.total_amount)}</td><td>{Array.isArray(order.items) ? order.items.length : 0}</td>
-                          <td><select value={order.status} onChange={(e) => changeOrderStatus(order.id, { status: e.target.value })} disabled={saving === `order-${order.id}`}>{orderStatuses.map((statusValue) => <option key={statusValue} value={statusValue}>{statusValue}</option>)}</select></td>
-                          <td><select value={order.delivery_status} onChange={(e) => changeOrderStatus(order.id, { delivery_status: e.target.value })} disabled={saving === `order-${order.id}`}>{deliveryStatuses.map(([statusValue, label]) => <option key={statusValue} value={statusValue}>{label}</option>)}</select></td>
-                          <td>{fmtDate(order.created_at)}</td>
-                        </tr>
-                      ))}
-                    </tbody></table>
+                <div>
+                  {/* Order Metrics Summary Cards */}
+                  <div className="subGrid" style={{ marginBottom: '1.25rem' }}>
+                    <div className="card metric">
+                      <span>Filtered Orders</span>
+                      <strong>{filteredOrders.length}</strong>
+                      <small>Out of {orders.length} total orders</small>
+                    </div>
+                    <div className="card metric">
+                      <span>Paid Revenue</span>
+                      <strong>{fmtMoney(filteredOrders.filter(o => o.status === 'Paid').reduce((acc, o) => acc + o.total_amount, 0))}</strong>
+                      <small>From filtered paid orders</small>
+                    </div>
+                    <div className="card metric">
+                      <span>Pending Shipments</span>
+                      <strong>{filteredOrders.filter(o => o.status === 'Paid' && o.delivery_status !== 'delivered').length}</strong>
+                      <small>Paid & not yet delivered</small>
+                    </div>
+                    <div className="card metric">
+                      <span>Same-Day Deliveries</span>
+                      <strong>{filteredOrders.filter(o => o.same_day_delivery).length}</strong>
+                      <small>Express express shipments</small>
+                    </div>
+                  </div>
+
+                  <div className="card">
+                    <div className="section">
+                      <h2>Manage Orders</h2>
+                      <p>Review payment state, scheduled delivery windows, and bouquet tracking progress.</p>
+                    </div>
+
+                    {/* Order Toolbar Filters & Actions */}
+                    <div className="orderToolbar">
+                      <input 
+                        type="text" 
+                        placeholder="Search ID, name, email, phone, city..." 
+                        value={orderSearch} 
+                        onChange={(e) => setOrderSearch(e.target.value)} 
+                      />
+                      <select value={orderStatusFilter} onChange={(e) => setOrderStatusFilter(e.target.value)}>
+                        <option value="all">All Payment Statuses</option>
+                        {orderStatuses.map((status) => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+                      <select value={orderDeliveryFilter} onChange={(e) => setOrderDeliveryFilter(e.target.value)}>
+                        <option value="all">All Delivery Statuses</option>
+                        {deliveryStatuses.map(([statusValue, label]) => (
+                          <option key={statusValue} value={statusValue}>{label}</option>
+                        ))}
+                      </select>
+                      <select value={orderSort} onChange={(e) => setOrderSort(e.target.value)}>
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                        <option value="amount_desc">Amount: High to Low</option>
+                        <option value="amount_asc">Amount: Low to High</option>
+                      </select>
+                      <button className="btn" style={{ height: "100%", display: "inline-flex", alignItems: "center" }} onClick={exportOrdersToCSV}>Export CSV</button>
+                    </div>
+
+                    <div className="tableWrap">
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>Order</th>
+                            <th>Customer</th>
+                            <th>Delivery Details</th>
+                            <th>Total</th>
+                            <th>Items</th>
+                            <th>Payment</th>
+                            <th>Tracking</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredOrders.map((order) => (
+                            <tr key={order.id}>
+                              <td>
+                                <div className="stack">
+                                  <button 
+                                    className="productNameBtn" 
+                                    style={{ textAlign: "left", display: "inline", padding: 0, background: "none", border: "none" }} 
+                                    onClick={() => setSelectedOrder(order)}
+                                  >
+                                    #{order.id}
+                                  </button>
+                                  <span className="muted">{order.user_email || "Guest checkout"}</span>
+                                </div>
+                              </td>
+                              <td>
+                                <div className="stack">
+                                  <strong>{order.customer_name}</strong>
+                                  <span className="muted" style={{ fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "200px" }}>{order.address}</span>
+                                </div>
+                              </td>
+                              <td>
+                                <div className="stack">
+                                  <span>{order.delivery_date || "Date pending"}</span>
+                                  <span className="muted">{order.delivery_slot_label || order.delivery_slot || "Slot pending"}</span>
+                                  <span className="muted">{order.phone} | {order.city}</span>
+                                </div>
+                              </td>
+                              <td>{fmtMoney(order.total_amount)}</td>
+                              <td>
+                                <button 
+                                  className="btn2" 
+                                  style={{ padding: "0.25rem 0.5rem", borderRadius: "8px", fontSize: "0.82rem" }} 
+                                  onClick={() => setSelectedOrder(order)}
+                                >
+                                  {Array.isArray(order.items) ? order.items.length : 0} Items
+                                </button>
+                              </td>
+                              <td>
+                                <select 
+                                  value={order.status} 
+                                  onChange={(e) => changeOrderStatus(order.id, { status: e.target.value })} 
+                                  disabled={saving === `order-${order.id}`}
+                                >
+                                  {orderStatuses.map((statusValue) => (
+                                    <option key={statusValue} value={statusValue}>{statusValue}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td>
+                                <select 
+                                  value={order.delivery_status} 
+                                  onChange={(e) => changeOrderStatus(order.id, { delivery_status: e.target.value })} 
+                                  disabled={saving === `order-${order.id}`}
+                                >
+                                  {deliveryStatuses.map(([statusValue, label]) => (
+                                    <option key={statusValue} value={statusValue}>{label}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td>{fmtDate(order.created_at)}</td>
+                              <td>
+                                <button 
+                                  className="btn" 
+                                  style={{ padding: "0.35rem 0.75rem", borderRadius: "8px", fontSize: "0.85rem" }} 
+                                  onClick={() => setSelectedOrder(order)}
+                                >
+                                  Details
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {filteredOrders.length === 0 ? (
+                        <div className="msg" style={{ margin: "1rem", textAlign: "center" }}>No orders matched your current filters.</div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               ) : null}
 
               {!loading && tab === "history" ? (
                 <div className="card">
-                  <div className="section"><h2>Order History</h2><p>Read-only history list of recorded order snapshots.</p></div>
+                  <div className="section">
+                    <h2>Order History</h2>
+                    <p>Manage recorded order history and audit trails.</p>
+                  </div>
+
+                  {/* Filters & Search Toolbar */}
+                  <div className="orderToolbar" style={{ gridTemplateColumns: "repeat(4, minmax(130px, 1fr)) minmax(200px, 1.5fr)" }}>
+                    <select
+                      value={historyStatusFilter}
+                      onChange={(e) => setHistoryStatusFilter(e.target.value)}
+                      className="select"
+                    >
+                      <option value="all">status</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Paid">Paid</option>
+                      <option value="Failed">Failed</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
+
+                    <select
+                      value={historyDeliveryFilter}
+                      onChange={(e) => setHistoryDeliveryFilter(e.target.value)}
+                      className="select"
+                    >
+                      <option value="all">delivery status</option>
+                      <option value="placed">Order Placed</option>
+                      <option value="preparing">Preparing</option>
+                      <option value="out_for_delivery">Out for Delivery</option>
+                      <option value="delivered">Delivered</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+
+                    <select
+                      value={historySameDayFilter}
+                      onChange={(e) => setHistorySameDayFilter(e.target.value)}
+                      className="select"
+                    >
+                      <option value="all">same day delivery</option>
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+
+                    <select
+                      value={historySort}
+                      onChange={(e) => setHistorySort(e.target.value)}
+                      className="select"
+                    >
+                      <option value="newest">ordered at</option>
+                      <option value="oldest">Oldest First</option>
+                      <option value="amount_desc">Amount: High to Low</option>
+                      <option value="amount_asc">Amount: Low to High</option>
+                    </select>
+
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <input
+                        type="text"
+                        placeholder="Search ID, name, email, city..."
+                        value={historySearch}
+                        onChange={(e) => setHistorySearch(e.target.value)}
+                        className="input"
+                        style={{ flexGrow: 1 }}
+                      />
+                      <button className="btn" style={{ padding: "0 1rem" }}>Search</button>
+                    </div>
+                  </div>
+
+                  {/* History Data Table */}
                   <div className="tableWrap">
-                    <table className="table"><thead><tr><th>History ID</th><th>Order</th><th>Customer</th><th>Payment</th><th>Delivery</th><th>Total</th><th>Ordered</th><th>Updated</th></tr></thead><tbody>
-                      {historyEntries.map((entry) => (
-                        <tr key={entry.id}>
-                          <td>#{entry.id}</td><td>{entry.source_order_id ? `#${entry.source_order_id}` : "-"}</td>
-                          <td><div className="stack"><strong>{entry.customer_name}</strong><span className="muted">{entry.user_email || "No linked account"}</span></div></td>
-                          <td><span className="pill">{entry.status}</span></td>
-                          <td><div className="stack"><span className="pill">{entry.delivery_status_label || entry.delivery_status}</span><span className="muted">{entry.delivery_date || "-"} | {entry.delivery_slot_label || entry.delivery_slot || "-"}</span></div></td>
-                          <td>{fmtMoney(entry.total_amount)}</td><td>{fmtDate(entry.ordered_at)}</td><td>{fmtDate(entry.updated_at)}</td>
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>History ID</th>
+                          <th>Order</th>
+                          <th>Customer</th>
+                          <th>Payment</th>
+                          <th>Delivery</th>
+                          <th>Total</th>
+                          <th>Ordered</th>
+                          <th>Updated</th>
                         </tr>
-                      ))}
-                    </tbody></table>
+                      </thead>
+                      <tbody>
+                        {filteredHistory.map((entry) => (
+                          <tr key={entry.id}>
+                            <td>#{entry.id}</td>
+                            <td>{entry.source_order_id ? `#${entry.source_order_id}` : "-"}</td>
+                            <td>
+                              <div className="stack">
+                                <strong>{entry.customer_name}</strong>
+                                <span className="muted">{entry.user_email || "No linked account"}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`pill ${String(entry.status).toLowerCase() === "paid" ? "pillPaid" : ""}`}>{entry.status}</span>
+                            </td>
+                            <td>
+                              <div className="stack">
+                                <span className="pill">{entry.delivery_status_label || entry.delivery_status}</span>
+                                <span className="muted">
+                                  {entry.delivery_date || "-"} | {entry.delivery_slot_label || entry.delivery_slot || "-"}
+                                </span>
+                              </div>
+                            </td>
+                            <td>{fmtMoney(entry.total_amount)}</td>
+                            <td>{fmtDate(entry.ordered_at)}</td>
+                            <td>{fmtDate(entry.updated_at)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {filteredHistory.length === 0 ? (
+                      <div className="msg" style={{ margin: "2rem", textAlign: "center" }}>No order history matched your filters.</div>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -1171,9 +1874,49 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
               {!loading && tab === "feedback" ? (
                 <div className="card">
                   <div className="section"><h2>Moderate Feedback</h2><p>Review customer feedback and update moderation status.</p></div>
+                  
+                  {/* Feedback Filtering & Search Bar */}
+                  <div className="orderToolbar" style={{ gridTemplateColumns: "repeat(2, minmax(130px, 1fr)) minmax(200px, 1.5fr)", marginBottom: "1.5rem" }}>
+                    <select
+                      value={feedbackStatusFilter}
+                      onChange={(e) => setFeedbackStatusFilter(e.target.value)}
+                      className="select"
+                    >
+                      <option value="all">moderation status</option>
+                      <option value="pending">Pending</option>
+                      <option value="reviewed">Reviewed</option>
+                      <option value="hidden">Hidden</option>
+                    </select>
+
+                    <select
+                      value={feedbackRatingFilter}
+                      onChange={(e) => setFeedbackRatingFilter(e.target.value)}
+                      className="select"
+                    >
+                      <option value="all">rating</option>
+                      <option value="5">5 stars</option>
+                      <option value="4">4 stars</option>
+                      <option value="3">3 stars</option>
+                      <option value="2">2 stars</option>
+                      <option value="1">1 star</option>
+                    </select>
+
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <input
+                        type="text"
+                        placeholder="Search user, email, product, message..."
+                        value={feedbackSearch}
+                        onChange={(e) => setFeedbackSearch(e.target.value)}
+                        className="input"
+                        style={{ flexGrow: 1 }}
+                      />
+                      <button className="btn" style={{ padding: "0 1rem" }}>Search</button>
+                    </div>
+                  </div>
+
                   <div className="tableWrap">
                     <table className="table"><thead><tr><th>Feedback</th><th>User</th><th>Target</th><th>Rating</th><th>Status</th><th>Created</th></tr></thead><tbody>
-                      {feedbackEntries.map((entry) => (
+                      {filteredFeedback.map((entry) => (
                         <tr key={entry.id}>
                           <td><div className="stack"><strong>{entry.title}</strong><span className="muted">{entry.message}</span></div></td>
                           <td><div className="stack"><span>{entry.user_name}</span><span className="muted">{entry.user_email || "Guest"}</span></div></td>
@@ -1183,6 +1926,9 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
                         </tr>
                       ))}
                     </tbody></table>
+                    {filteredFeedback.length === 0 ? (
+                      <div className="msg" style={{ margin: "2rem", textAlign: "center" }}>No feedback matched your filters.</div>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -1300,6 +2046,200 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
             </>
           ) : null}
         </div>
+
+        {/* Dynamic Detailed Order Modal Overlay */}
+        {selectedOrder ? (
+          <div className="modalOverlay" onClick={() => setSelectedOrder(null)}>
+            <div className="modalContent" onClick={(e) => e.stopPropagation()}>
+              <div className="modalHeader">
+                <h3>Order Details #{selectedOrder.id}</h3>
+                <button className="btn2" style={{ padding: "0.25rem 0.6rem", borderRadius: "8px", border: "none", cursor: "pointer" }} onClick={() => setSelectedOrder(null)}>✕</button>
+              </div>
+              <div className="modalBody">
+                <div className="detailGrid">
+                  <div className="stack" style={{ gap: "1.2rem" }}>
+                    {/* Customer and Shipping Section */}
+                    <div className="detailSection">
+                      <h4>Customer & Shipping Details</h4>
+                      <div className="infoList">
+                        <div className="infoRow">
+                          <span className="infoLabel">Customer Name:</span>
+                          <span className="infoValue">{selectedOrder.customer_name}</span>
+                        </div>
+                        <div className="infoRow">
+                          <span className="infoLabel">Email:</span>
+                          <span className="infoValue">{selectedOrder.user_email || "Guest checkout"}</span>
+                        </div>
+                        <div className="infoRow">
+                          <span className="infoLabel">Phone:</span>
+                          <span className="infoValue">{selectedOrder.phone}</span>
+                        </div>
+                        <div className="infoRow">
+                          <span className="infoLabel">Address:</span>
+                          <span className="infoValue">{selectedOrder.address}</span>
+                        </div>
+                        <div className="infoRow">
+                          <span className="infoLabel">City & Pincode:</span>
+                          <span className="infoValue">{selectedOrder.city} - {selectedOrder.pincode}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Delivery Slot Section */}
+                    <div className="detailSection">
+                      <h4>Delivery Schedule</h4>
+                      <div className="infoList">
+                        <div className="infoRow">
+                          <span className="infoLabel">Scheduled Date:</span>
+                          <span className="infoValue">{selectedOrder.delivery_date || "Date pending"}</span>
+                        </div>
+                        <div className="infoRow">
+                          <span className="infoLabel">Time Slot:</span>
+                          <span className="infoValue">{selectedOrder.delivery_slot_label || selectedOrder.delivery_slot || "Slot pending"}</span>
+                        </div>
+                        <div className="infoRow">
+                          <span className="infoLabel">Same-Day Delivery:</span>
+                          <span className="infoValue">{selectedOrder.same_day_delivery ? "Yes (Express)" : "No (Standard)"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="stack" style={{ gap: "1.2rem" }}>
+                    {/* Payment and Status Section */}
+                    <div className="detailSection">
+                      <h4>Payment & Tracking</h4>
+                      <div className="infoList" style={{ marginBottom: "0.8rem" }}>
+                        <div className="infoRow">
+                          <span className="infoLabel">Order Total:</span>
+                          <span className="infoValue" style={{ fontSize: "1.1rem", fontWeight: "700" }}>{fmtMoney(selectedOrder.total_amount)}</span>
+                        </div>
+                        <div className="infoRow">
+                          <span className="infoLabel">Payment Status:</span>
+                          <span className="infoValue">
+                            <span className={`badge ${selectedOrder.status ? selectedOrder.status.toLowerCase() : "pending"}`}>
+                              {selectedOrder.status}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="infoRow">
+                          <span className="infoLabel">Delivery Status:</span>
+                          <span className="infoValue" style={{ textTransform: "capitalize" }}>
+                            {selectedOrder.delivery_status_label || selectedOrder.delivery_status || "Placed"}
+                          </span>
+                        </div>
+                        {selectedOrder.payment_id && (
+                          <div className="infoRow">
+                            <span className="infoLabel">Payment ID:</span>
+                            <span className="infoValue" style={{ fontFamily: "monospace", fontSize: "0.82rem" }}>{selectedOrder.payment_id}</span>
+                          </div>
+                        )}
+                        {selectedOrder.payment_order_id && (
+                          <div className="infoRow">
+                            <span className="infoLabel">Razorpay Order ID:</span>
+                            <span className="infoValue" style={{ fontFamily: "monospace", fontSize: "0.82rem" }}>{selectedOrder.payment_order_id}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Dropdowns to modify status directly from detail modal */}
+                      <div className="stack" style={{ gap: "0.5rem", marginTop: "1rem" }}>
+                        <div className="field">
+                          <span className="fieldLabel">Update Payment Status</span>
+                          <select 
+                            value={selectedOrder.status} 
+                            onChange={(e) => {
+                              changeOrderStatus(selectedOrder.id, { status: e.target.value });
+                              setSelectedOrder(prev => ({ ...prev, status: e.target.value }));
+                            }} 
+                            disabled={saving === `order-${selectedOrder.id}`}
+                          >
+                            {orderStatuses.map((statusValue) => (
+                              <option key={statusValue} value={statusValue}>{statusValue}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="field">
+                          <span className="fieldLabel">Update Delivery Status</span>
+                          <select 
+                            value={selectedOrder.delivery_status} 
+                            onChange={(e) => {
+                              changeOrderStatus(selectedOrder.id, { delivery_status: e.target.value });
+                              setSelectedOrder(prev => ({ 
+                                ...prev, 
+                                delivery_status: e.target.value,
+                                delivery_status_label: deliveryStatuses.find(d => d[0] === e.target.value)?.[1] || e.target.value
+                              }));
+                            }} 
+                            disabled={saving === `order-${selectedOrder.id}`}
+                          >
+                            {deliveryStatuses.map(([statusValue, label]) => (
+                              <option key={statusValue} value={statusValue}>{label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Gift Message and Occasion Section */}
+                    {selectedOrder.gift_message || selectedOrder.occasion ? (
+                      <div className="giftMessageCard">
+                        <span className="fieldLabel">Gift Card Details</span>
+                        <div style={{ marginTop: "0.4rem", fontWeight: "700" }}>
+                          Occasion: {selectedOrder.occasion ? selectedOrder.occasion.replace(/_/g, " ").toUpperCase() : "GIFTING"}
+                        </div>
+                        {selectedOrder.gift_message ? (
+                          <div className="giftMessageText">
+                            "{selectedOrder.gift_message}"
+                          </div>
+                        ) : (
+                          <div className="muted" style={{ fontSize: "0.85rem", fontStyle: "italic" }}>No custom message written.</div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Ordered Items Section */}
+                <div className="detailSection">
+                  <h4>Items Ordered ({Array.isArray(selectedOrder.items) ? selectedOrder.items.length : 0})</h4>
+                  <div style={{ maxHeight: "250px", overflowY: "auto", paddingRight: "0.2rem" }}>
+                    {Array.isArray(selectedOrder.items) && selectedOrder.items.map((item, idx) => {
+                      const image = productImageUrl(item);
+                      const price = Number(item.price || item.flower_price || item.bouquet_price || 0);
+                      const quantity = Number(item.qty || item.quantity || 1);
+                      const subtotal = price * quantity;
+                      return (
+                        <div className="itemRow" key={`${item.id}-${idx}`}>
+                          {image ? (
+                            <img className="itemImage" src={image} alt={item.name} />
+                          ) : (
+                            <div className="itemImage" style={{ display: "grid", placeItems: "center", background: "rgba(255,255,255,0.05)" }}>❀</div>
+                          )}
+                          <div className="itemInfo">
+                            <strong>{item.name}</strong>
+                            <span>{item.purchaseType ? `${item.purchaseType[0].toUpperCase()}${item.purchaseType.slice(1)}` : "Flower"} ({item.category || "Flower"})</span>
+                          </div>
+                          <div className="muted" style={{ fontSize: "0.9rem", margin: "0 1.5rem" }}>
+                            {fmtMoney(price)} x {quantity}
+                          </div>
+                          <div className="itemTotal">
+                            {fmtMoney(subtotal)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="modalFooter">
+                <button className="btn2" onClick={() => printOrderReceipt(selectedOrder)}>Print Receipt</button>
+                <button className="btn" onClick={() => setSelectedOrder(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
       </section>
     </>
   );
