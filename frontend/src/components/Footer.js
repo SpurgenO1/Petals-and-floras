@@ -68,7 +68,7 @@ function Footer() {
         </div>
       </div>
       <div style={{ marginTop: "3rem", paddingTop: "2rem", borderTop: "1px solid rgba(255,255,255,0.1)", opacity: 0.5, fontSize: "0.9rem" }}>
-        &copy; {new Date().getFullYear()} Petals and Flora. All rights reserved.
+        &copy; {new Date().getFullYear()} Designed and Developed by Narean Raj D & Spurgen A.
       </div>
     </footer>
   );
