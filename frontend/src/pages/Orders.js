@@ -92,7 +92,8 @@ export default function Orders({ authUser = null }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [expandedOrders, setExpandedOrders] = useState({});
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [viewMode, setViewMode] = useState("active");
   const petalsRef = useRef(
     Array.from({ length: 12 }, () => ({
       left: `${Math.random() * 100}%`,
@@ -160,12 +161,34 @@ export default function Orders({ authUser = null }) {
     [orders]
   );
 
-  const toggleOrderDetails = (orderId) => {
-    setExpandedOrders((current) => ({
-      ...current,
-      [orderId]: !current[orderId],
-    }));
-  };
+  const activeOrders = useMemo(
+    () => enrichedOrders.filter((order) => order.delivery_status !== "delivered"),
+    [enrichedOrders]
+  );
+
+  const deliveredOrders = useMemo(
+    () => enrichedOrders.filter((order) => order.delivery_status === "delivered"),
+    [enrichedOrders]
+  );
+
+  useEffect(() => {
+    if (!selectedOrder) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setSelectedOrder(null);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedOrder]);
 
   if (!authUser) {
     return (
@@ -230,12 +253,25 @@ export default function Orders({ authUser = null }) {
         }
         .orders-hero,
         .order-card {
+          position: relative;
           background: rgba(45, 4, 16, 0.78);
           border: 1px solid rgba(255,255,255,0.12);
           border-radius: 20px;
-          padding: 1.15rem 1.25rem;
+          padding: 1.15rem 1.25rem 4.7rem;
           box-shadow: 0 18px 46px rgba(0,0,0,0.28);
           backdrop-filter: blur(14px);
+        }
+        .orders-hero {
+          padding: 1.2rem 1.25rem;
+        }
+        .orders-hero-top {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 1rem;
+        }
+        .orders-hero-copy {
+          min-width: 0;
         }
         .orders-hero h1,
         .order-card h2 {
@@ -249,6 +285,132 @@ export default function Orders({ authUser = null }) {
           line-height: 1.55;
           max-width: 760px;
           margin-bottom: 0;
+        }
+        .orders-view-switch {
+          flex: 0 0 auto;
+          display: inline-flex;
+          gap: 0.35rem;
+          padding: 0.28rem;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.12);
+        }
+        .orders-view-btn {
+          position: relative;
+          min-height: 36px;
+          padding: 0.45rem 0.75rem;
+          border-radius: 999px;
+          border: 0;
+          background: transparent;
+          color: rgba(255,255,255,0.7);
+          font: inherit;
+          font-size: 0.88rem;
+          font-weight: 800;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+        .orders-view-btn.active {
+          background: rgba(255,255,255,0.14);
+          color: #fff;
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+        }
+        .orders-view-count {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 22px;
+          height: 22px;
+          margin-left: 0.4rem;
+          padding: 0 0.35rem;
+          border-radius: 999px;
+          background: rgba(251,146,60,0.18);
+          color: #fed7aa;
+          font-size: 0.75rem;
+        }
+        .orders-section-head {
+          display: flex;
+          align-items: end;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 0.4rem 0.2rem 0;
+        }
+        .orders-section-head h2 {
+          margin: 0;
+          font-size: clamp(1.2rem, 1.2vw + 0.9rem, 1.7rem);
+        }
+        .orders-section-head span {
+          color: rgba(255,255,255,0.6);
+          font-size: 0.92rem;
+        }
+        .history-card {
+          opacity: 0.92;
+        }
+        .history-card {
+          display: grid;
+          grid-template-columns: minmax(0, 1.5fr) minmax(220px, 0.9fr) auto;
+          align-items: center;
+          gap: 1rem;
+          padding: 1rem 1.25rem;
+          min-height: 96px;
+        }
+        .history-card .order-top {
+          margin: 0;
+        }
+        .history-card .order-title-row h2 {
+          font-size: 1.08rem;
+        }
+        .history-card .order-meta {
+          margin: 0.32rem 0 0;
+          font-size: 0.86rem;
+          line-height: 1.35;
+        }
+        .history-card .order-total {
+          min-width: 110px;
+        }
+        .history-summary {
+          display: grid;
+          gap: 0.25rem;
+          color: rgba(255,255,255,0.72);
+          font-size: 0.9rem;
+          line-height: 1.35;
+        }
+        .history-summary strong {
+          color: #fff;
+          font-size: 1rem;
+        }
+        .history-summary span {
+          overflow-wrap: anywhere;
+        }
+        .history-quick {
+          display: grid;
+          gap: 0.35rem;
+          color: rgba(255,255,255,0.72);
+          font-size: 0.88rem;
+          line-height: 1.35;
+          min-width: 0;
+        }
+        .history-quick span {
+          display: block;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .history-quick strong {
+          color: rgba(255,255,255,0.94);
+          font-weight: 800;
+        }
+        .history-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.85rem;
+        }
+        .history-card .view-order-btn {
+          position: static;
+          right: auto;
+          bottom: auto;
+        }
+        .history-card .progress-fill {
+          background: linear-gradient(90deg, #22c55e 0%, #f97316 100%);
         }
         .order-top {
           display: flex;
@@ -291,12 +453,14 @@ export default function Orders({ authUser = null }) {
           letter-spacing: 0.04em;
         }
         .view-order-btn {
+          position: absolute;
+          right: 1.25rem;
+          bottom: 1.15rem;
           display: inline-flex;
           align-items: center;
           justify-content: center;
           min-height: 34px;
           padding: 0.45rem 0.8rem;
-          margin-top: 0.65rem;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,0.16);
           background: rgba(255,255,255,0.07);
@@ -418,13 +582,93 @@ export default function Orders({ authUser = null }) {
           gap: 0.45rem;
         }
         .order-details {
+          display: none;
+        }
+        .order-details-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1.2rem;
+          background: rgba(7, 0, 4, 0.74);
+          backdrop-filter: blur(10px);
+        }
+        .order-details-page {
+          width: min(940px, 100%);
+          max-height: min(760px, calc(100vh - 2.4rem));
+          overflow: auto;
+          border-radius: 22px;
+          background: linear-gradient(180deg, rgba(54, 5, 20, 0.98), rgba(31, 3, 12, 0.98));
+          border: 1px solid rgba(255,255,255,0.14);
+          box-shadow: 0 32px 90px rgba(0,0,0,0.52);
+          color: #fff;
+        }
+        .order-details-top {
+          position: sticky;
+          top: 0;
+          z-index: 2;
+          display: flex;
+          justify-content: space-between;
+          gap: 1rem;
+          align-items: flex-start;
+          padding: 1.2rem;
+          background: rgba(42, 4, 16, 0.96);
+          border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .order-details-title h2 {
+          margin: 0.15rem 0 0.35rem;
+          font-size: clamp(1.35rem, 2vw, 2rem);
+        }
+        .order-details-title p {
+          margin: 0;
+          color: rgba(255,255,255,0.68);
+        }
+        .close-details-btn {
+          flex: 0 0 auto;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 38px;
+          height: 38px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.16);
+          background: rgba(255,255,255,0.08);
+          color: #fff;
+          font-size: 1.25rem;
+          line-height: 1;
+          cursor: pointer;
+        }
+        .order-details-body {
           display: grid;
+          gap: 1rem;
+          padding: 1.2rem;
+        }
+        .order-details-summary {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 0.7rem;
-          margin: 0.95rem 0 0.9rem;
-          padding: 0.9rem;
-          border-radius: 16px;
-          background: rgba(255,255,255,0.045);
+        }
+        .order-details-stat {
+          padding: 0.8rem;
+          border-radius: 14px;
+          background: rgba(255,255,255,0.055);
           border: 1px solid rgba(255,255,255,0.09);
+        }
+        .order-details-stat strong {
+          display: block;
+          color: rgba(255,255,255,0.58);
+          font-size: 0.74rem;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          margin-bottom: 0.35rem;
+        }
+        .order-details-stat span {
+          display: block;
+          color: rgba(255,255,255,0.92);
+          line-height: 1.35;
+          overflow-wrap: anywhere;
         }
         .order-details-head {
           display: flex;
@@ -447,18 +691,18 @@ export default function Orders({ authUser = null }) {
         }
         .order-item-row {
           display: grid;
-          grid-template-columns: 62px minmax(0, 1fr) auto;
+          grid-template-columns: 72px minmax(0, 1fr) auto;
           align-items: center;
           gap: 0.75rem;
-          padding: 0.6rem;
-          border-radius: 12px;
+          padding: 0.75rem;
+          border-radius: 14px;
           background: rgba(0,0,0,0.14);
           border: 1px solid rgba(255,255,255,0.06);
         }
         .order-item-image {
-          width: 62px;
-          height: 62px;
-          border-radius: 10px;
+          width: 72px;
+          height: 72px;
+          border-radius: 12px;
           overflow: hidden;
           background: linear-gradient(135deg, rgba(251,113,133,0.28), rgba(251,146,60,0.16));
           border: 1px solid rgba(255,255,255,0.09);
@@ -541,7 +785,36 @@ export default function Orders({ authUser = null }) {
           .orders-hero,
           .order-card {
             padding: 1.2rem;
+            padding-bottom: 4.8rem;
             border-radius: 18px;
+          }
+          .orders-hero {
+            padding-bottom: 1.2rem;
+          }
+          .orders-hero-top {
+            flex-direction: column;
+          }
+          .orders-view-switch {
+            width: 100%;
+          }
+          .orders-view-btn {
+            flex: 1;
+          }
+          .history-card {
+            grid-template-columns: 1fr;
+            align-items: stretch;
+          }
+          .history-card .order-total {
+            text-align: left;
+          }
+          .history-actions {
+            justify-content: space-between;
+          }
+          .history-quick span {
+            white-space: normal;
+          }
+          .history-card .view-order-btn {
+            width: 100%;
           }
           .order-top {
             flex-direction: column;
@@ -564,6 +837,22 @@ export default function Orders({ authUser = null }) {
           }
           .order-details-head,
           .order-item-row {
+            grid-template-columns: 1fr;
+          }
+          .order-details-overlay {
+            padding: 0.75rem;
+          }
+          .order-details-page {
+            max-height: calc(100vh - 1.5rem);
+            border-radius: 18px;
+          }
+          .order-details-top {
+            padding: 1rem;
+          }
+          .order-details-body {
+            padding: 1rem;
+          }
+          .order-details-summary {
             grid-template-columns: 1fr;
           }
           .order-details-head {
@@ -591,10 +880,32 @@ export default function Orders({ authUser = null }) {
         </div>
         <div className="orders-shell">
           <div className="orders-hero">
-            <h1>My Deliveries</h1>
-            <p className="orders-copy">
-              Follow each bouquet from confirmation to doorstep arrival. We refresh this page automatically so the delivery story feels clear and reassuring.
-            </p>
+            <div className="orders-hero-top">
+              <div className="orders-hero-copy">
+                <h1>{viewMode === "history" ? "Order History" : "My Orders"}</h1>
+                <p className="orders-copy">
+                  {viewMode === "history"
+                    ? "Delivered orders are saved here after completion, with full flower details and totals."
+                    : "Track active bouquet deliveries from confirmation to doorstep arrival."}
+                </p>
+              </div>
+              <div className="orders-view-switch" aria-label="Order view">
+                <button
+                  type="button"
+                  className={`orders-view-btn ${viewMode === "active" ? "active" : ""}`}
+                  onClick={() => setViewMode("active")}
+                >
+                  My Orders <span className="orders-view-count">{activeOrders.length}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`orders-view-btn ${viewMode === "history" ? "active" : ""}`}
+                  onClick={() => setViewMode("history")}
+                >
+                  Order History <span className="orders-view-count">{deliveredOrders.length}</span>
+                </button>
+              </div>
+            </div>
           </div>
 
           {loading ? <div className="order-card">Loading your order timeline...</div> : null}
@@ -606,7 +917,20 @@ export default function Orders({ authUser = null }) {
           ) : null}
 
           {!loading && !error
-            ? enrichedOrders.map((order) => (
+            ? (
+              <>
+                {viewMode === "active" ? (
+                  <>
+                    <div className="orders-section-head">
+                      <h2>Active Deliveries</h2>
+                      <span>{activeOrders.length} current</span>
+                    </div>
+                    {!activeOrders.length && enrichedOrders.length ? (
+                      <div className="order-card orders-empty">
+                        No active deliveries right now. Delivered orders are saved in Order History.
+                      </div>
+                    ) : null}
+                    {activeOrders.map((order) => (
                 <article key={order.id} className="order-card">
                   <div className="order-top">
                     <div>
@@ -618,14 +942,6 @@ export default function Orders({ authUser = null }) {
                       <p className="order-meta">
                         Placed {formatDateTime(order.created_at)}
                       </p>
-                      <button
-                        type="button"
-                        className="view-order-btn"
-                        onClick={() => toggleOrderDetails(order.id)}
-                        aria-expanded={Boolean(expandedOrders[order.id])}
-                      >
-                        {expandedOrders[order.id] ? "Hide order" : "View order"}
-                      </button>
                     </div>
                     <div className="order-total">
                       <strong>Rs. {Number(order.total_amount || 0).toLocaleString()}</strong>
@@ -670,59 +986,150 @@ export default function Orders({ authUser = null }) {
                     })}
                   </div>
 
-                  {expandedOrders[order.id] ? (
-                    <div className="order-details">
-                      <div className="order-details-head">
-                        <strong>Ordered Flowers</strong>
-                        <span>{order.item_count} item{order.item_count === 1 ? "" : "s"} · Rs. {Number(order.total_amount || 0).toLocaleString()}</span>
-                      </div>
-                      <div className="order-items">
-                        {(order.items || []).map((item, index) => {
-                          const image = getOrderItemImage(item);
-                          const quantity = Number(item.qty || item.quantity || 1);
-                          const price = Number(item.price || 0);
-                          const lineTotal = Number(item.line_total || price * quantity);
-                          return (
-                            <div key={`${order.id}-${item.id || item.product_id || item.name || index}`} className="order-item-row">
-                              <div className="order-item-image">
-                                {image ? (
-                                  <img src={image} alt={item.name || "Ordered flower"} loading="lazy" decoding="async" />
-                                ) : (
-                                  <div className="order-item-placeholder">{String(item.name || "F").charAt(0).toUpperCase()}</div>
-                                )}
-                              </div>
-                              <div className="order-item-info">
-                                <strong>{item.name || "Flower item"}</strong>
-                                <span>
-                                  {item.category || "Floral"} · {formatPurchaseType(item.purchaseType || item.purchase_type)} · Qty {quantity}
-                                </span>
-                              </div>
-                              <div className="order-item-price">
-                                <strong>Rs. {lineTotal.toLocaleString()}</strong>
-                                <span>Rs. {price.toLocaleString()} each</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-
                   <div className="events">
                     {(order.tracking_events || []).map((event) => (
                       <div key={`${order.id}-${event.status}-${event.created_at}`} className="event">
                         <div>
                           <strong>{event.label || event.title}</strong>
-                          <span>{formatShortDate(order.delivery_date)} · {order.delivery_slot_label || order.delivery_slot || "-"}</span>
+                          <span>{formatShortDate(order.delivery_date)} - {order.delivery_slot_label || order.delivery_slot || "-"}</span>
                         </div>
                         <p>{event.description}</p>
                       </div>
                     ))}
                   </div>
+                  <button
+                    type="button"
+                    className="view-order-btn"
+                    onClick={() => setSelectedOrder(order)}
+                  >
+                    View order
+                  </button>
                 </article>
-              ))
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <div className="orders-section-head">
+                      <h2>Delivered Orders</h2>
+                      <span>{deliveredOrders.length} delivered</span>
+                    </div>
+                    {!deliveredOrders.length && enrichedOrders.length ? (
+                      <div className="order-card orders-empty">
+                        Delivered orders will appear here after they are marked as delivered.
+                      </div>
+                    ) : null}
+                    {deliveredOrders.map((order) => (
+                <article key={order.id} className="order-card history-card">
+                  <div className="order-top">
+                    <div>
+                      <div className="order-kicker">Order #{order.id}</div>
+                      <div className="order-title-row">
+                        <h2>{order.delivery_status_label || "Delivered"}</h2>
+                        <span className="status-pill">{order.status}</span>
+                      </div>
+                      <p className="order-meta">
+                        Placed {formatDateTime(order.created_at)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="history-quick">
+                    <span><strong>Delivered:</strong> {formatDateOnly(order.delivery_date)}</span>
+                    <span><strong>Slot:</strong> {order.delivery_slot_label || order.delivery_slot || "-"}</span>
+                  </div>
+
+                  <div className="history-actions">
+                    <div className="order-total">
+                      <strong>Rs. {Number(order.total_amount || 0).toLocaleString()}</strong>
+                      <div>{order.item_count} item{order.item_count === 1 ? "" : "s"}</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="view-order-btn"
+                      onClick={() => setSelectedOrder(order)}
+                    >
+                      View
+                    </button>
+                  </div>
+                </article>
+                    ))}
+                  </>
+                )}
+              </>
+            )
             : null}
         </div>
+        {selectedOrder ? (
+          <div className="order-details-overlay" role="dialog" aria-modal="true" aria-labelledby="order-details-title">
+            <div className="order-details-page">
+              <div className="order-details-top">
+                <div className="order-details-title">
+                  <div className="order-kicker">Order #{selectedOrder.id}</div>
+                  <h2 id="order-details-title">Order Details</h2>
+                  <p>{selectedOrder.delivery_status_label || "Delivery in progress"} - {formatDateTime(selectedOrder.created_at)}</p>
+                </div>
+                <button type="button" className="close-details-btn" onClick={() => setSelectedOrder(null)} aria-label="Close order details">
+                  x
+                </button>
+              </div>
+
+              <div className="order-details-body">
+                <div className="order-details-summary">
+                  <div className="order-details-stat">
+                    <strong>Total</strong>
+                    <span>Rs. {Number(selectedOrder.total_amount || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="order-details-stat">
+                    <strong>Status</strong>
+                    <span>{selectedOrder.status}</span>
+                  </div>
+                  <div className="order-details-stat">
+                    <strong>Delivery</strong>
+                    <span>{formatDateOnly(selectedOrder.delivery_date)}</span>
+                  </div>
+                  <div className="order-details-stat">
+                    <strong>Time</strong>
+                    <span>{selectedOrder.delivery_slot_label || selectedOrder.delivery_slot || "-"}</span>
+                  </div>
+                </div>
+
+                <div className="order-details-head">
+                  <strong>Ordered Flowers</strong>
+                  <span>{selectedOrder.item_count} item{selectedOrder.item_count === 1 ? "" : "s"}</span>
+                </div>
+                <div className="order-items">
+                  {(selectedOrder.items || []).map((item, index) => {
+                    const image = getOrderItemImage(item);
+                    const quantity = Number(item.qty || item.quantity || 1);
+                    const price = Number(item.price || 0);
+                    const lineTotal = Number(item.line_total || price * quantity);
+                    return (
+                      <div key={`${selectedOrder.id}-${item.id || item.product_id || item.name || index}`} className="order-item-row">
+                        <div className="order-item-image">
+                          {image ? (
+                            <img src={image} alt={item.name || "Ordered flower"} loading="lazy" decoding="async" />
+                          ) : (
+                            <div className="order-item-placeholder">{String(item.name || "F").charAt(0).toUpperCase()}</div>
+                          )}
+                        </div>
+                        <div className="order-item-info">
+                          <strong>{item.name || "Flower item"}</strong>
+                          <span>
+                            {item.category || "Floral"} - {formatPurchaseType(item.purchaseType || item.purchase_type)} - Qty {quantity}
+                          </span>
+                        </div>
+                        <div className="order-item-price">
+                          <strong>Rs. {lineTotal.toLocaleString()}</strong>
+                          <span>Rs. {price.toLocaleString()} each</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </section>
     </>
   );
