@@ -171,6 +171,13 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
   const [feedbackRatingFilter, setFeedbackRatingFilter] = useState("all");
   const [feedbackSearch, setFeedbackSearch] = useState("");
   const [users, setUsers] = useState([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [userActiveFilter, setUserActiveFilter] = useState("all");
+  const [userStaffFilter, setUserStaffFilter] = useState("all");
+  const [userSuperuserFilter, setUserSuperuserFilter] = useState("all");
+  const [userJoinedFilter, setUserJoinedFilter] = useState("all");
+  const [userLoginFilter, setUserLoginFilter] = useState("all");
+  const [userSort, setUserSort] = useState("newest");
   const [groups, setGroups] = useState([]);
   const [productForm, setProductForm] = useState(emptyProduct);
   const [productFormPhoto, setProductFormPhoto] = useState(null);
@@ -588,6 +595,96 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
 
     return result;
   }, [feedbackEntries, feedbackStatusFilter, feedbackRatingFilter, feedbackSearch]);
+
+  const filteredUsers = useMemo(() => {
+    let result = Array.isArray(users) ? [...users] : [];
+    const normalizedSearch = userSearch.trim().toLowerCase();
+    const now = new Date();
+    const inDateRange = (value, filter) => {
+      if (filter === "all") {
+        return true;
+      }
+      if (filter === "never") {
+        return !value;
+      }
+      if (!value) {
+        return false;
+      }
+
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return false;
+      }
+
+      const diffDays = (now - date) / (1000 * 60 * 60 * 24);
+      if (filter === "today") {
+        return date.toDateString() === now.toDateString();
+      }
+      if (filter === "week") {
+        return diffDays <= 7;
+      }
+      if (filter === "month") {
+        return diffDays <= 30;
+      }
+      if (filter === "year") {
+        return diffDays <= 365;
+      }
+      return true;
+    };
+
+    if (normalizedSearch) {
+      result = result.filter((user) => {
+        const groupNames = (user.groups || []).map((group) => group.name).join(" ");
+        return [
+          user.id,
+          user.username,
+          user.email,
+          user.first_name,
+          user.last_name,
+          user.name,
+          groupNames,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedSearch);
+      });
+    }
+
+    if (userActiveFilter !== "all") {
+      result = result.filter((user) => Boolean(user.is_active) === (userActiveFilter === "active"));
+    }
+    if (userStaffFilter !== "all") {
+      result = result.filter((user) => Boolean(user.is_staff) === (userStaffFilter === "staff"));
+    }
+    if (userSuperuserFilter !== "all") {
+      result = result.filter((user) => Boolean(user.is_superuser) === (userSuperuserFilter === "superuser"));
+    }
+    if (userJoinedFilter !== "all") {
+      result = result.filter((user) => inDateRange(user.date_joined, userJoinedFilter));
+    }
+    if (userLoginFilter !== "all") {
+      result = result.filter((user) => inDateRange(user.last_login, userLoginFilter));
+    }
+
+    result.sort((left, right) => {
+      switch (userSort) {
+        case "oldest":
+          return new Date(left.date_joined || 0) - new Date(right.date_joined || 0);
+        case "last-login":
+          return new Date(right.last_login || 0) - new Date(left.last_login || 0);
+        case "username-asc":
+          return String(left.username || "").localeCompare(String(right.username || ""));
+        case "username-desc":
+          return String(right.username || "").localeCompare(String(left.username || ""));
+        case "newest":
+        default:
+          return new Date(right.date_joined || 0) - new Date(left.date_joined || 0);
+      }
+    });
+
+    return result;
+  }, [userActiveFilter, userJoinedFilter, userLoginFilter, userSearch, userSort, userStaffFilter, userSuperuserFilter, users]);
 
 
 
@@ -1056,6 +1153,9 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
         .detailHeader{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start}
         .detailHeader h3{margin:0;font-size:1.3rem}
         .usersPanel{display:grid;gap:1rem}
+        .userToolbar{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:.75rem;margin:1rem 0}
+        .userToolbarSearch{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:.75rem;grid-column:1/-1}
+        .userToolbarMeta{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1rem;color:rgba(255,255,255,.68);font-size:.9rem}
         .userList{display:grid;gap:.85rem}
         .userCard{display:grid;grid-template-columns:minmax(210px,.9fr) minmax(280px,1.35fr) minmax(210px,.85fr) minmax(150px,.55fr);gap:1rem;align-items:start;padding:1rem;border-radius:18px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055)}
         .userCard:hover{background:rgba(255,255,255,.075);border-color:rgba(255,255,255,.18)}
@@ -1255,12 +1355,16 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
         @media (max-width:980px){
           .heroGrid{grid-template-columns:1fr}
           .orderToolbar{grid-template-columns:1fr 1fr}
+          .userToolbar{grid-template-columns:1fr 1fr}
+          .userToolbarSearch{grid-template-columns:1fr}
         }
         @media (max-width:768px){
           .detailGrid{grid-template-columns:1fr}
         }
         @media (max-width:640px){
           .orderToolbar{grid-template-columns:1fr}
+          .userToolbar{grid-template-columns:1fr}
+          .userToolbarMeta{align-items:flex-start;flex-direction:column}
         }
       `}</style>
       <section className="ap">
@@ -1936,9 +2040,77 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
               {!loading && tab === "users" ? (
                 <div className="card">
                   <div className="section"><h2>User Manager And Staff Access</h2><p>Manage user details, active status, staff access, and group assignments.</p></div>
+                  <div className="userToolbar">
+                    <select value={userActiveFilter} onChange={(event) => setUserActiveFilter(event.target.value)}>
+                      <option value="all">All active statuses</option>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                    <select value={userStaffFilter} onChange={(event) => setUserStaffFilter(event.target.value)}>
+                      <option value="all">All staff statuses</option>
+                      <option value="staff">Staff</option>
+                      <option value="not-staff">Not staff</option>
+                    </select>
+                    <select value={userSuperuserFilter} onChange={(event) => setUserSuperuserFilter(event.target.value)}>
+                      <option value="all">All superuser statuses</option>
+                      <option value="superuser">Superuser</option>
+                      <option value="not-superuser">Not superuser</option>
+                    </select>
+                    <select value={userJoinedFilter} onChange={(event) => setUserJoinedFilter(event.target.value)}>
+                      <option value="all">Any date joined</option>
+                      <option value="today">Joined today</option>
+                      <option value="week">Joined last 7 days</option>
+                      <option value="month">Joined last 30 days</option>
+                      <option value="year">Joined last year</option>
+                    </select>
+                    <select value={userLoginFilter} onChange={(event) => setUserLoginFilter(event.target.value)}>
+                      <option value="all">Any last login</option>
+                      <option value="today">Logged in today</option>
+                      <option value="week">Logged in last 7 days</option>
+                      <option value="month">Logged in last 30 days</option>
+                      <option value="year">Logged in last year</option>
+                      <option value="never">Never logged in</option>
+                    </select>
+                    <select value={userSort} onChange={(event) => setUserSort(event.target.value)}>
+                      <option value="newest">Newest joined first</option>
+                      <option value="oldest">Oldest joined first</option>
+                      <option value="last-login">Recent login first</option>
+                      <option value="username-asc">Username A-Z</option>
+                      <option value="username-desc">Username Z-A</option>
+                    </select>
+                    <div className="userToolbarSearch">
+                      <input
+                        type="text"
+                        placeholder="Search username, name, email, group, or ID"
+                        value={userSearch}
+                        onChange={(event) => setUserSearch(event.target.value)}
+                      />
+                      <button className="btn" type="button">Search</button>
+                    </div>
+                  </div>
+                  <div className="userToolbarMeta">
+                    <span>{filteredUsers.length} of {users.length} user{users.length === 1 ? "" : "s"} shown</span>
+                    {(userSearch || userActiveFilter !== "all" || userStaffFilter !== "all" || userSuperuserFilter !== "all" || userJoinedFilter !== "all" || userLoginFilter !== "all" || userSort !== "newest") ? (
+                      <button
+                        type="button"
+                        className="btn2"
+                        onClick={() => {
+                          setUserSearch("");
+                          setUserActiveFilter("all");
+                          setUserStaffFilter("all");
+                          setUserSuperuserFilter("all");
+                          setUserJoinedFilter("all");
+                          setUserLoginFilter("all");
+                          setUserSort("newest");
+                        }}
+                      >
+                        Reset Filters
+                      </button>
+                    ) : <span className="muted">All users</span>}
+                  </div>
                   <div className="usersPanel">
                     <div className="userList">
-                      {users.map((user) => (
+                      {filteredUsers.map((user) => (
                         <article className="userCard" key={user.id}>
                           <div className="userIdentity">
                             <div className="userAvatar">{(user.username || user.email || "U").slice(0, 1).toUpperCase()}</div>
@@ -1974,6 +2146,9 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
                           <div className="userActions"><button className="btn" type="button" disabled={saving === `user-${user.id}`} onClick={() => saveUser(user)}>{saving === `user-${user.id}` ? "Saving..." : "Save User"}</button></div>
                         </article>
                       ))}
+                      {!filteredUsers.length ? (
+                        <div className="msg" style={{ textAlign: "center" }}>No users matched the current search and filters.</div>
+                      ) : null}
                     </div>
                   </div>
                 </div>
