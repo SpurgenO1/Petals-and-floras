@@ -289,6 +289,8 @@ export const getAdminOrders = () => request({ method: "get", url: "admin/orders/
 export const updateAdminOrder = (orderId, payload) =>
   request({ method: "patch", url: `admin/orders/${orderId}/`, data: payload });
 export const getAdminOrderHistory = () => request({ method: "get", url: "admin/order-history/" });
+export const createAdminOrderHistory = (payload) => request({ method: "post", url: "admin/order-history/", data: payload });
+export const deleteAdminOrderHistory = (ids) => request({ method: "delete", url: "admin/order-history/", data: { ids } });
 export const getAdminFeedback = () => request({ method: "get", url: "admin/feedback/" });
 export const updateAdminFeedback = (feedbackId, payload) =>
   request({ method: "patch", url: `admin/feedback/${feedbackId}/`, data: payload });
