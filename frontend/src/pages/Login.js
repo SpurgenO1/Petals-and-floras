@@ -442,6 +442,7 @@ export default function Login({ authUser, onAuthSuccess }) {
 
           .auth-shell {
             border-radius: 22px;
+            overflow: hidden;
           }
 
           .auth-story {
@@ -449,8 +450,24 @@ export default function Login({ authUser, onAuthSuccess }) {
             gap: 1.25rem;
           }
 
+          .auth-title {
+            font-size: clamp(2rem, 12vw, 2.8rem);
+            line-height: 1.05;
+          }
+
           .auth-card {
             padding: 1.5rem 1rem;
+          }
+
+          .auth-tabs {
+            width: 100%;
+            border-radius: 18px;
+          }
+
+          .auth-tab {
+            min-width: 0;
+            padding: 0.75rem 0.55rem;
+            font-size: 0.86rem;
           }
 
           .auth-form-title {

@@ -958,6 +958,9 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
           .checkout-page {
             padding: calc(var(--nav-height) + 1.25rem) 0.85rem 3.5rem;
           }
+          .checkout-shell {
+            gap: 1rem;
+          }
           .checkout-card {
             padding: 1.2rem;
             border-radius: 22px;
@@ -970,6 +973,35 @@ export default function Checkout({ cart = [], clearCart = () => {}, authUser = n
           }
           .checkout-title {
             font-size: 1.7rem;
+            line-height: 1.15;
+          }
+          .checkout-lead,
+          .delivery-note,
+          .checkout-note,
+          .summary-note {
+            font-size: 0.9rem;
+            line-height: 1.6;
+          }
+          .checkout-input,
+          .checkout-select,
+          .checkout-textarea {
+            min-height: 48px;
+            border-radius: 14px;
+            padding: 0.85rem 0.9rem;
+          }
+          .slot-card,
+          .payment-method-card {
+            border-radius: 16px;
+            padding: 0.9rem;
+          }
+          .success-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+          }
+          .success-link {
+            width: 100%;
+            min-width: 0;
+            text-align: center;
           }
           .summary-row,
           .summary-total,

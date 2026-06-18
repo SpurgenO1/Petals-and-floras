@@ -1354,17 +1354,156 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
 
         @media (max-width:980px){
           .heroGrid{grid-template-columns:1fr}
+          .productToolbar{grid-template-columns:1fr}
+          .productToolbarMeta{align-items:flex-start;flex-direction:column}
           .orderToolbar{grid-template-columns:1fr 1fr}
           .userToolbar{grid-template-columns:1fr 1fr}
           .userToolbarSearch{grid-template-columns:1fr}
+          .userCard{grid-template-columns:1fr 1fr}
+          .userActions{justify-content:flex-start}
         }
         @media (max-width:768px){
+          .ap{padding:calc(var(--nav-height) + 1rem) .75rem 2.5rem;overflow-x:hidden}
+          .aw{gap:.85rem}
+          .card{padding:1rem;border-radius:18px}
+          .card:hover,.tableWrap:hover{transform:none}
+          .topActions{justify-content:stretch}
+          .topActions .btn2{width:100%}
+          .tabs{
+            flex-wrap:nowrap;
+            overflow-x:auto;
+            padding-bottom:.35rem;
+            margin-inline:-.15rem;
+            scrollbar-width:none;
+          }
+          .tabs::-webkit-scrollbar{display:none}
+          .tab{flex:0 0 auto;min-height:42px;white-space:nowrap}
+          .subGrid{grid-template-columns:1fr}
           .detailGrid{grid-template-columns:1fr}
+          .detailHeader{display:grid}
+          .actions{display:grid;grid-template-columns:1fr;width:100%}
+          .actions .btn,.actions .btn2,.actions .btnDanger{width:100%}
+          .tableWrap{
+            margin-inline:-.35rem;
+            border-radius:16px;
+            -webkit-overflow-scrolling:touch;
+          }
+          .table{min-width:760px}
+          .modalOverlay{align-items:flex-end;padding:.75rem}
+          .modalContent{
+            width:100%;
+            max-height:calc(100dvh - 1.5rem);
+            border-radius:20px;
+          }
+          .modalHeader,.modalBody,.modalFooter{padding:1rem}
+          .modalFooter{display:grid;grid-template-columns:1fr}
+          .infoRow{display:grid;gap:.25rem}
+          .infoValue{text-align:left}
         }
         @media (max-width:640px){
-          .orderToolbar{grid-template-columns:1fr}
+          .orderToolbar{grid-template-columns:1fr !important}
+          .orderToolbar > div{display:grid !important;grid-template-columns:1fr;gap:.55rem}
           .userToolbar{grid-template-columns:1fr}
           .userToolbarMeta{align-items:flex-start;flex-direction:column}
+          .userCard{grid-template-columns:1fr;padding:.9rem;border-radius:16px}
+          .userEditGrid{grid-template-columns:1fr}
+          .userActions .btn{width:100%}
+          .formGrid{grid-template-columns:1fr}
+          .chartTitle,.barMeta{display:grid;gap:.25rem}
+          .itemRow{align-items:flex-start}
+          .itemInfo strong{white-space:normal}
+          .adminMobileTableWrap{
+            overflow:visible;
+            margin:1rem 0 0;
+            border:0;
+            background:transparent;
+            box-shadow:none;
+          }
+          .adminMobileTable{
+            display:block;
+            width:100%;
+            min-width:0 !important;
+          }
+          .adminMobileTable thead{
+            display:none;
+          }
+          .adminMobileTable tbody{
+            display:grid;
+            gap:.85rem;
+          }
+          .adminMobileTable tr{
+            display:grid;
+            gap:.1rem;
+            width:100%;
+            padding:.95rem;
+            border-radius:18px;
+            border:1px solid rgba(255,255,255,.12);
+            background:rgba(255,255,255,.055);
+          }
+          .adminMobileTable td{
+            display:grid;
+            grid-template-columns:minmax(82px,.34fr) minmax(0,1fr);
+            gap:.75rem;
+            align-items:start;
+            width:100%;
+            padding:.5rem 0;
+            border-bottom:1px solid rgba(255,255,255,.06);
+            font-size:.9rem;
+            min-width:0;
+          }
+          .adminMobileTable td:last-child{
+            border-bottom:0;
+            padding-bottom:0;
+          }
+          .adminMobileTable td::before{
+            color:rgba(255,255,255,.52);
+            font-size:.7rem;
+            font-weight:800;
+            letter-spacing:.06em;
+            line-height:1.35;
+            text-transform:uppercase;
+          }
+          .adminMobileTable td > *{
+            min-width:0;
+          }
+          .adminMobileTable .stack{
+            min-width:0;
+          }
+          .adminMobileTable .muted{
+            white-space:normal !important;
+            max-width:100% !important;
+            overflow:visible !important;
+            text-overflow:clip !important;
+          }
+          .adminMobileTable select,
+          .adminMobileTable .btn,
+          .adminMobileTable .btn2{
+            width:100%;
+            min-height:40px;
+          }
+          .ordersTable td:nth-child(1)::before{content:"Order"}
+          .ordersTable td:nth-child(2)::before{content:"Customer"}
+          .ordersTable td:nth-child(3)::before{content:"Delivery"}
+          .ordersTable td:nth-child(4)::before{content:"Total"}
+          .ordersTable td:nth-child(5)::before{content:"Items"}
+          .ordersTable td:nth-child(6)::before{content:"Payment"}
+          .ordersTable td:nth-child(7)::before{content:"Tracking"}
+          .ordersTable td:nth-child(8)::before{content:"Created"}
+          .ordersTable td:nth-child(9)::before{content:"Actions"}
+          .historyTable td:nth-child(1)::before{content:"History"}
+          .historyTable td:nth-child(2)::before{content:"Order"}
+          .historyTable td:nth-child(3)::before{content:"Customer"}
+          .historyTable td:nth-child(4)::before{content:"Payment"}
+          .historyTable td:nth-child(5)::before{content:"Delivery"}
+          .historyTable td:nth-child(6)::before{content:"Total"}
+          .historyTable td:nth-child(7)::before{content:"Ordered"}
+          .historyTable td:nth-child(8)::before{content:"Updated"}
+          .feedbackTable td:nth-child(1)::before{content:"Feedback"}
+          .feedbackTable td:nth-child(2)::before{content:"User"}
+          .feedbackTable td:nth-child(3)::before{content:"Target"}
+          .feedbackTable td:nth-child(4)::before{content:"Rating"}
+          .feedbackTable td:nth-child(5)::before{content:"Status"}
+          .feedbackTable td:nth-child(6)::before{content:"Created"}
         }
       `}</style>
       <section className="ap">
@@ -1759,8 +1898,8 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
                       <button className="btn" style={{ height: "100%", display: "inline-flex", alignItems: "center" }} onClick={exportOrdersToCSV}>Export CSV</button>
                     </div>
 
-                    <div className="tableWrap">
-                      <table className="table">
+                    <div className="tableWrap adminMobileTableWrap">
+                      <table className="table ordersTable adminMobileTable">
                         <thead>
                           <tr>
                             <th>Order</th>
@@ -1925,8 +2064,8 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
                   </div>
 
                   {/* History Data Table */}
-                  <div className="tableWrap">
-                    <table className="table">
+                  <div className="tableWrap adminMobileTableWrap">
+                    <table className="table historyTable adminMobileTable">
                       <thead>
                         <tr>
                           <th>History ID</th>
@@ -2018,8 +2157,8 @@ export default function AdminPortal({ authUser, onAuthSuccess }) {
                     </div>
                   </div>
 
-                  <div className="tableWrap">
-                    <table className="table"><thead><tr><th>Feedback</th><th>User</th><th>Target</th><th>Rating</th><th>Status</th><th>Created</th></tr></thead><tbody>
+                  <div className="tableWrap adminMobileTableWrap">
+                    <table className="table feedbackTable adminMobileTable"><thead><tr><th>Feedback</th><th>User</th><th>Target</th><th>Rating</th><th>Status</th><th>Created</th></tr></thead><tbody>
                       {filteredFeedback.map((entry) => (
                         <tr key={entry.id}>
                           <td><div className="stack"><strong>{entry.title}</strong><span className="muted">{entry.message}</span></div></td>

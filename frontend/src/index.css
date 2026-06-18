@@ -77,6 +77,26 @@ select,
 textarea,
 button {
   font: inherit;
+  max-width: 100%;
+}
+
+button,
+a,
+select,
+input,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+p,
+li,
+h1,
+h2,
+h3,
+h4,
+span,
+strong {
+  overflow-wrap: anywhere;
 }
 
 .home-overhaul {
@@ -669,6 +689,19 @@ a {
 }
 
 @media (max-width: 640px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
   .hero-wrapper { height: 165vh; }
   .hero-content {
     max-width: 100%;
@@ -685,6 +718,13 @@ a {
   }
   .section-title h2 {
     font-size: 2rem;
+  }
+
+  .premium-card:hover,
+  .btn:hover,
+  .product-card:hover .product-image img,
+  .gallery-item:hover .gallery-image-shell img {
+    transform: none;
   }
 }
 
