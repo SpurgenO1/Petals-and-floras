@@ -619,6 +619,19 @@ export default function Login({ authUser, onAuthSuccess }) {
                 />
               </div>
 
+              <div className="auth-field">
+                <label className="auth-label" htmlFor="password">Password</label>
+                <input
+                  id="password"
+                  type="password"
+                  className="auth-input"
+                  value={activeForm.password}
+                  onChange={(event) => updateField("password", event.target.value)}
+                  placeholder="Enter your password"
+                  required
+                />
+              </div>
+
               {mode === "register" && (
                 <div className="auth-field">
                   <label className="auth-label" htmlFor="confirmPassword">Confirm Password</label>
@@ -633,19 +646,6 @@ export default function Login({ authUser, onAuthSuccess }) {
                   />
                 </div>
               )}
-
-              <div className="auth-field">
-                <label className="auth-label" htmlFor="password">Password</label>
-                <input
-                  id="password"
-                  type="password"
-                  className="auth-input"
-                  value={activeForm.password}
-                  onChange={(event) => updateField("password", event.target.value)}
-                  placeholder="Enter your password"
-                  required
-                />
-              </div>
 
               {error && <div className="auth-feedback error">{error}</div>}
               {message && <div className="auth-feedback success">{message}</div>}
