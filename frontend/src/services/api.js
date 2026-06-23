@@ -345,7 +345,7 @@ export const getAdminUrlForPath = (pathname = "", search = "", hash = "") => {
 export const getGoogleLoginUrl = () => {
   const base = new URL(API_BASE_URL, getWindowOrigin());
   const pathname = base.pathname.replace(/\/api\/?$/, "");
-  base.pathname = `${pathname}/accounts/google/login/`.replace(/\/{2,}/g, "/");
+  base.pathname = `${pathname}/api/accounts/google/login/`.replace(/\/{2,}/g, "/");
   return base.toString();
 };
 

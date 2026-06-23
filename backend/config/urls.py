@@ -34,12 +34,12 @@ urlpatterns = [
         ),
     ),
     path('admin/', admin.site.urls),
-    path('accounts/social/login/cancelled/', include([
+    path('api/accounts/social/login/cancelled/', include([
         path('', lambda r: redirect('/api/auth/google/failure/')),
     ])),
-    path('accounts/social/login/error/', lambda r: redirect('/api/auth/google/failure/')),
-    path('accounts/social/signup/', lambda r: redirect('/api/auth/google/failure/')),
-    path('accounts/', include('allauth.urls')),
+    path('api/accounts/social/login/error/', lambda r: redirect('/api/auth/google/failure/')),
+    path('api/accounts/social/signup/', lambda r: redirect('/api/auth/google/failure/')),
+    path('api/accounts/', include('allauth.urls')),
     path('api/', include('shop.urls')),
 ]
 
