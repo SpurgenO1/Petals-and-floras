@@ -593,7 +593,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
             isFromAdmin: p.isFromAdmin,
           })));
           if (nextSignature !== productsSignatureRef.current) setProducts(mergedProducts);
-          setError(mergedProducts.length > 0 ? "" : "No products found in MongoDB or Django admin.");
+          setError(mergedProducts.length > 0 ? "" : "No products found in the store catalog.");
           lastFetchTimeRef.current = now;
         }
       } catch {
@@ -601,7 +601,7 @@ export default function Products({ cart = [], setCart = () => {} }) {
           if (!hasProductsRef.current) setProducts(fallbackCatalogProducts);
           setError(hasProductsRef.current
             ? "Live sync is temporarily unavailable. Current products will refresh when the backend reconnects."
-            : "Showing catalog fallback. Start the backend server to load live products from MongoDB or Django admin."
+            : "Showing catalog fallback. Start the backend server to load live products from the store catalog."
           );
         }
       } finally {
@@ -1186,6 +1186,42 @@ export default function Products({ cart = [], setCart = () => {} }) {
         }
         @media (max-width: 640px) {
           .page { padding: calc(var(--nav-height) + 1.2rem) 0.75rem 4rem; }
+          .header { margin-bottom: 1.6rem; }
+          .header h2 { font-size: clamp(2rem, 12vw, 3rem); line-height: 1.05; }
+          .deco-line::before, .deco-line::after { flex-basis: 44px; }
+          .filter-bar-wrap { margin-bottom: 1rem; }
+          .filter-bar {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            align-items: stretch;
+            border-radius: 18px;
+          }
+          .search-pill {
+            grid-column: 1 / -1;
+            min-width: 0;
+            width: 100%;
+            border-radius: 14px;
+          }
+          .filter-btn,
+          .sort-pill,
+          .clear-btn {
+            width: 100%;
+            min-width: 0;
+            justify-content: center;
+            border-radius: 14px;
+          }
+          .sort-pill {
+            grid-column: 1 / -1;
+          }
+          .sort-pill select {
+            min-width: 0;
+            width: 100%;
+          }
+          .clear-btn {
+            grid-column: 1 / -1;
+          }
+          .active-chips { gap: 0.4rem; margin-bottom: 0.9rem; }
+          .active-chip { max-width: 100%; }
           .grid { grid-template-columns: 1fr; gap: 0.95rem; }
           .card-body { height: auto; padding: 1rem; }
           .card-img-wrap { height: 180px; }
@@ -1196,8 +1232,21 @@ export default function Products({ cart = [], setCart = () => {} }) {
           .card-footer { flex-direction: column; align-items: stretch; }
           .btn-add { width: 100%; }
           .cart-bubble { left: 1rem; right: 1rem; bottom: 5.75rem; text-align: center; }
-          .dropdown-panel { position: fixed; left: 0.75rem; right: 0.75rem; top: auto; min-width: unset; }
-          .product-modal { grid-template-columns: 1fr; max-height: calc(100vh - 2rem); overflow-y: auto; }
+          .dropdown-panel {
+            position: fixed;
+            left: 0.75rem !important;
+            right: 0.75rem !important;
+            top: auto;
+            min-width: 0 !important;
+            max-width: calc(100vw - 1.5rem);
+            padding: 1rem;
+          }
+          .price-panel { min-width: 0; }
+          .product-modal-overlay {
+            align-items: flex-end;
+            padding: 0.75rem;
+          }
+          .product-modal { grid-template-columns: 1fr; max-height: calc(100dvh - 1.5rem); overflow-y: auto; border-radius: 22px; }
           .product-modal-media { max-height: 220px; }
           .product-modal-content { padding: 1.2rem; }
           .product-modal-price-grid { grid-template-columns: 1fr; }

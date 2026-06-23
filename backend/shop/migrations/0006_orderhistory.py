@@ -20,7 +20,7 @@ def backfill_order_history(apps, schema_editor):
                 "total_amount": order.total_amount,
                 "payment_order_id": order.payment_order_id,
                 "payment_id": order.payment_id,
-                "mongo_order_id": order.mongo_order_id,
+                "legacy_order_id": order.legacy_order_id,
                 "ordered_at": order.created_at,
             },
         )
@@ -29,7 +29,7 @@ def backfill_order_history(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("shop", "0005_order_mongo_order_id"),
+        ("shop", "0005_order_legacy_order_id"),
     ]
 
     operations = [
@@ -46,7 +46,7 @@ class Migration(migrations.Migration):
                 ("total_amount", models.IntegerField(default=0)),
                 ("payment_order_id", models.CharField(blank=True, default="", max_length=100)),
                 ("payment_id", models.CharField(blank=True, default="", max_length=100)),
-                ("mongo_order_id", models.CharField(blank=True, default="", max_length=100)),
+                ("legacy_order_id", models.CharField(blank=True, default="", max_length=100)),
                 ("ordered_at", models.DateTimeField()),
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 ("source_order", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="history_entries", to="shop.order")),

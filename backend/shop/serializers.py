@@ -119,7 +119,7 @@ class OrderHistorySerializer(serializers.ModelSerializer):
             "total_amount",
             "payment_order_id",
             "payment_id",
-            "mongo_order_id",
+            "legacy_order_id",
             "created_at",
             "items",
             "item_count",

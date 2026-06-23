@@ -662,6 +662,10 @@ export default function Contact({ authUser = null }) {
         }
         @media (max-width: 640px) {
           .cn-page { padding: calc(var(--nav-height) + 1.5rem) 0.9rem 4rem; }
+          .cn-header { margin-bottom: 2rem; }
+          .cn-title { font-size: clamp(2rem, 13vw, 3rem); }
+          .cn-sub { font-size: 0.88rem; line-height: 1.6; }
+          .cn-deco::before, .cn-deco::after { flex-basis: 42px; }
           .cn-cards-grid { grid-template-columns: 1fr; }
           .cn-form-panel, .cn-side-panel { padding: 1.2rem; }
           .cn-info-card { padding: 1.1rem 1rem; }
@@ -670,6 +674,8 @@ export default function Contact({ authUser = null }) {
           .cn-helper { font-size: 0.86rem; margin-bottom: 1rem; }
           .cn-rating-head { flex-direction: column; align-items: flex-start; }
           .cn-rating-pill { flex: 1 1 calc(50% - 0.35rem); justify-content: center; text-align: center; }
+          .cn-hours-row { display: grid; gap: 0.15rem; }
+          .cn-social-btn { flex: 1 1 100%; justify-content: center; }
         }
       `}</style>
 
@@ -686,7 +692,7 @@ export default function Contact({ authUser = null }) {
         >
           <p className="cn-eyebrow">Share what you felt about us</p>
           <h2 className="cn-title">Flower <span>Feedback</span></h2>
-          <p className="cn-sub">Users can review the shop or a specific flower, and every entry is saved to admin and MongoDB.</p>
+          <p className="cn-sub">Users can review the shop or a specific flower, and every entry is saved to the store admin.</p>
           <div className="cn-deco"><span>Rose</span></div>
         </motion.div>
 

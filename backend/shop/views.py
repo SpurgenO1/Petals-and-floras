@@ -23,7 +23,6 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.csrf import csrf_exempt
 from django_ratelimit.decorators import ratelimit
-from pymongo.errors import PyMongoError
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -44,7 +43,6 @@ from .delivery import (
     get_slot_label,
     parse_delivery_date,
 )
-from .mongo import get_orders_collection, get_products_collection, sync_product_to_mongo
 from .models import Feedback, Order, OrderHistory, OrderTrackingEvent, Product, UserProfile
 from .serializers import (
     AuthUserSerializer,
@@ -370,7 +368,7 @@ def serialize_order(order):
         "items": order.items,
         "payment_order_id": order.payment_order_id,
         "payment_id": order.payment_id,
-        "mongo_order_id": order.mongo_order_id,
+        "legacy_order_id": order.legacy_order_id,
         "delivery_date": order.delivery_date,
         "delivery_slot": order.delivery_slot,
         "delivery_slot_label": get_slot_label(order.delivery_slot),
@@ -409,7 +407,7 @@ def serialize_order_history(entry):
         "items": entry.items,
         "payment_order_id": entry.payment_order_id,
         "payment_id": entry.payment_id,
-        "mongo_order_id": entry.mongo_order_id,
+        "legacy_order_id": entry.legacy_order_id,
         "delivery_date": entry.delivery_date,
         "delivery_slot": entry.delivery_slot,
         "delivery_slot_label": get_slot_label(entry.delivery_slot),
@@ -478,7 +476,7 @@ def serialize_group(group):
     }
 
 
-def build_mongo_order(payload, order_obj):
+def build_order_payment_summary(payload):
     payment_method = str(payload.get("payment_method", "COD")).upper()
     if payment_method not in ["COD", "ONLINE"]:
         payment_method = "COD"
@@ -492,36 +490,8 @@ def build_mongo_order(payload, order_obj):
         payment_status = "PAID"
 
     return {
-        "admin_order_id": order_obj.id,
-        "source": "checkout",
-        "created_at": timezone.now(),
-        "customer": {
-            "user_id": order_obj.user_id,
-            "name": sanitize_string(payload["name"], 100),
-            "phone": sanitize_string(payload["phone"], 15),
-            "address": sanitize_string(payload["address"], 500),
-            "city": sanitize_string(payload.get("city", ""), 50),
-            "pincode": sanitize_string(payload.get("pincode", ""), 10),
-        },
-        "items": normalize_items(payload["items"]),
-        "total_amount": payload["total_amount"],
-        "order_status": payload["status"],
-        "delivery": {
-            "date": payload["delivery_date"].isoformat() if payload.get("delivery_date") else "",
-            "slot": payload["delivery_slot"],
-            "slot_label": get_slot_label(payload["delivery_slot"]),
-            "same_day_delivery": bool(payload.get("same_day_delivery")),
-            "gift_message": sanitize_string(payload.get("gift_message", ""), 300),
-            "occasion": sanitize_string(payload.get("occasion", ""), 30),
-            "tracking_status": payload.get("delivery_status", Order.DELIVERY_STATUS_ORDER_PLACED),
-        },
-        "payment": {
-            "method": payment_method,
-            "status": payment_status,
-            "razorpay_order_id": sanitize_string(payload.get("payment_order_id", ""), 100),
-            "razorpay_payment_id": sanitize_string(payload.get("payment_id", ""), 100),
-            "amount_paid": payload["total_amount"] if payment_status == "PAID" else 0,
-        },
+        "method": payment_method,
+        "status": payment_status,
     }
 
 
@@ -584,23 +554,12 @@ def persist_order(user, payload):
         description=build_tracking_description(order_obj.delivery_status, order_obj),
     )
 
-    mongo_order = build_mongo_order(payload, order_obj)
-    mongo_order_id = None
-    mongo_sync_warning = ""
-
-    try:
-        orders = get_orders_collection()
-        insert_result = orders.insert_one(mongo_order)
-        mongo_order_id = str(insert_result.inserted_id)
-        order_obj.mongo_order_id = mongo_order_id
-        order_obj.save(update_fields=["mongo_order_id"])
-    except PyMongoError:
-        mongo_sync_warning = "Order saved locally, but MongoDB sync failed."
+    payment_summary = build_order_payment_summary(payload)
 
     return (
         {
             "message": "Order placed successfully",
-            "order_id": mongo_order_id,
+            "order_id": order_obj.id,
             "admin_order_id": order_obj.id,
             "status": order_obj.status,
             "delivery_status": order_obj.delivery_status,
@@ -608,9 +567,9 @@ def persist_order(user, payload):
             "delivery_date": order_obj.delivery_date,
             "delivery_slot": order_obj.delivery_slot,
             "delivery_slot_label": get_slot_label(order_obj.delivery_slot),
-            "payment_method": mongo_order["payment"]["method"],
-            "payment_status": mongo_order["payment"]["status"],
-            "warning": mongo_sync_warning,
+            "payment_method": payment_summary["method"],
+            "payment_status": payment_summary["status"],
+            "warning": "",
         },
         None,
     )
@@ -679,13 +638,6 @@ def verify_razorpay_webhook_signature(body, signature):
 @throttle_classes([ProductRateThrottle])
 def get_products(request):
     django_products = list(Product.objects.all().order_by("id")[:200])
-    for item in django_products:
-        try:
-            sync_product_to_mongo(item)
-        except PyMongoError:
-            break
-
-    products = []
     product_map = {}
 
     for item in django_products:
@@ -704,51 +656,6 @@ def get_products(request):
             "image": get_product_photo_url(item, request),
             "photo_url": get_product_photo_url(item, request),
         }
-
-    try:
-        collection = get_products_collection()
-        mongo_products = collection.find(
-            {},
-            {
-                "django_product_id": 1,
-                "name": 1,
-                "price": 1,
-                "flower_price": 1,
-                "bouquet_price": 1,
-                "old_price": 1,
-                "description": 1,
-                "category": 1,
-                "image": 1,
-                "photo_url": 1,
-                "updated_at": 1,
-            },
-        ).sort([("updated_at", -1), ("_id", -1)]).limit(500)
-
-        for item in mongo_products:
-            name = sanitize_string(item.get("name", ""), 100)
-            category = sanitize_string(item.get("category", "Floral"), 50)
-            mongo_identity = item.get("django_product_id") or item.get("_id")
-            if item.get("django_product_id"):
-                dedupe_key = f"django::{item['django_product_id']}"
-            else:
-                dedupe_key = f"mongo::{mongo_identity}"
-            if not name:
-                continue
-
-            product_map[dedupe_key] = {
-                "id": str(mongo_identity),
-                "name": name,
-                "price": int(item.get("flower_price", item.get("price", 0)) or 0),
-                "flower_price": int(item.get("flower_price", item.get("price", 0)) or 0),
-                "bouquet_price": int(item.get("bouquet_price", item.get("flower_price", item.get("price", 0))) or 0),
-                "old_price": item.get("old_price"),
-                "description": sanitize_string(item.get("description", ""), 500),
-                "category": category,
-                "image": sanitize_string(item.get("photo_url") or item.get("image") or "", 500),
-                "photo_url": sanitize_string(item.get("photo_url") or item.get("image") or "", 500),
-            }
-    except PyMongoError:
-        pass
 
     products = list(product_map.values())
 
@@ -776,31 +683,20 @@ def get_products(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def system_status(request):
-    mongo_ok = True
-    mongo_error = ""
-
-    try:
-        get_products_collection().estimated_document_count()
-        get_orders_collection().estimated_document_count()
-    except Exception as exc:
-        mongo_ok = False
-        mongo_error = str(exc)
-        security_logger.exception("MongoDB health check failed")
-
     return Response(
         {
             "backend": {
                 "ok": True,
                 "service": "django",
             },
+            "database": {
+                "ok": True,
+                "engine": settings.DATABASES["default"]["ENGINE"],
+                "name": str(settings.DATABASES["default"].get("NAME", "")),
+            },
             "django_admin": {
                 "ok": True,
                 "url": "/admin/",
-            },
-            "mongodb": {
-                "ok": mongo_ok,
-                "database": settings.MONGO_DB_NAME,
-                "error": mongo_error,
             },
         }
     )
@@ -941,79 +837,11 @@ def admin_products(request):
     if request.method == "GET":
         django_products = list(Product.objects.order_by("-id")[:200])
         results = []
-        seen_keys = set()
 
         for product in django_products:
-            try:
-                sync_product_to_mongo(product)
-            except PyMongoError:
-                pass
-
             serialized = serialize_product(product, request)
             serialized["source"] = "django"
-            serialized["mongo_id"] = ""
             results.append(serialized)
-            seen_keys.add(f"django::{product.id}")
-
-        try:
-            mongo_products = get_products_collection().find(
-                {},
-                {
-                    "django_product_id": 1,
-                    "name": 1,
-                    "price": 1,
-                    "flower_price": 1,
-                    "bouquet_price": 1,
-                    "old_price": 1,
-                    "description": 1,
-                    "category": 1,
-                    "image": 1,
-                    "photo_url": 1,
-                    "updated_at": 1,
-                },
-            ).sort([("updated_at", -1), ("_id", -1)]).limit(500)
-
-            for item in mongo_products:
-                django_product_id = item.get("django_product_id")
-                if django_product_id:
-                    key = f"django::{django_product_id}"
-                    if key in seen_keys:
-                        for result in results:
-                            if str(result["id"]) == str(django_product_id):
-                                result["source"] = "django+mongo"
-                                result["mongo_id"] = str(item.get("_id", ""))
-                                break
-                        continue
-                    seen_keys.add(key)
-
-                name = sanitize_string(item.get("name", ""), 100)
-                if not name:
-                    continue
-
-                mongo_id = str(item.get("_id", ""))
-                mongo_key = f"mongo::{mongo_id}"
-                if mongo_key in seen_keys:
-                    continue
-
-                results.append(
-                    {
-                        "id": f"mongo-{mongo_id}",
-                        "mongo_id": mongo_id,
-                        "name": name,
-                        "price": int(item.get("flower_price", item.get("price", 0)) or 0),
-                        "flower_price": int(item.get("flower_price", item.get("price", 0)) or 0),
-                        "bouquet_price": int(item.get("bouquet_price", item.get("flower_price", item.get("price", 0))) or 0),
-                        "old_price": item.get("old_price"),
-                        "description": sanitize_string(item.get("description", ""), 1000),
-                        "category": sanitize_string(item.get("category", "Floral"), 100),
-                        "image": sanitize_string(item.get("photo_url") or item.get("image") or "", 500),
-                        "photo_url": sanitize_string(item.get("photo_url") or item.get("image") or "", 500),
-                        "source": "mongo",
-                    }
-                )
-                seen_keys.add(mongo_key)
-        except PyMongoError:
-            pass
 
         return Response({"results": results})
 

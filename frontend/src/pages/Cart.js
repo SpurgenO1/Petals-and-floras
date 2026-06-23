@@ -414,10 +414,16 @@ export default function Cart({ cart = [], removeFromCart = () => {}, updateCartQ
         }
         @media (max-width: 640px) {
           .ct-page { padding: calc(var(--nav-height) + 1.5rem) 0.9rem 4rem; }
-          .ct-panel { padding: 1.2rem; }
+          .ct-header { margin-bottom: 1.7rem; }
+          .ct-title { line-height: 1.05; }
+          .ct-deco::before, .ct-deco::after { flex-basis: 44px; }
+          .ct-panel { padding: 1.1rem; border-radius: 20px; }
+          .ct-panel-title { align-items: flex-start; line-height: 1.25; }
           .ct-item { align-items: flex-start; gap: 0.7rem; flex-wrap: wrap; }
           .ct-item-left { min-width: 0; width: calc(100% - 38px); }
           .ct-item-mid { width: 100%; justify-content: space-between; padding-left: 2.9rem; }
+          .ct-qty-btn { width: 34px; height: 34px; }
+          .ct-qty-badge { min-width: 38px; text-align: center; }
           .ct-item-name { white-space: normal; }
           .ct-total { align-items: center; }
           .ct-total-val { font-size: 1.7rem; }

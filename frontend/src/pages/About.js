@@ -373,9 +373,14 @@ export default function About() {
         }
         @media (max-width: 640px) {
           .ab-hero { min-height: auto; padding: 2rem 1rem 2.5rem; }
+          .ab-hero-title { font-size: clamp(2.5rem, 15vw, 3.8rem); line-height: 0.98; }
+          .ab-hero-sub { font-size: 0.95rem; line-height: 1.7; }
+          .ab-deco::before, .ab-deco::after { flex-basis: 42px; }
           .ab-quote-wrap, .ab-section, .ab-story-wrap { padding-left: 0.9rem; padding-right: 0.9rem; }
           .ab-quote-panel, .ab-story { padding: 1.5rem 1.2rem; }
+          .ab-section-title h2 { font-size: clamp(1.8rem, 10vw, 2.4rem); }
           .ab-team-img { height: 180px; }
+          .ab-ps-body { padding: 1.15rem; }
         }
       `}</style>
 
