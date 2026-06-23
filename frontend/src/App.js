@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { BrowserRouter as Router, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import LoadingScreen from "./components/LoadingScreen";
@@ -74,6 +74,8 @@ function AppLayout({
             />
             <Route path="/admin" element={<AdminPortal authUser={authUser} onAuthSuccess={handleAuthSuccess} />} />
             <Route path="/admin/*" element={<AdminPortal authUser={authUser} onAuthSuccess={handleAuthSuccess} />} />
+            {/* Redirect any unmatched paths to home instead of rendering a blank React error */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </main>
