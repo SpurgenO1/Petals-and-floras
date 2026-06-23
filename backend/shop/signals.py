@@ -80,23 +80,8 @@ def setup_social_app_and_site(sender, **kwargs):
         else:
             Site.objects.create(id=settings.SITE_ID, domain=domain, name="Petals and Floras")
 
-        client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
-        client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-        if client_id and client_secret:
-            app, created = SocialApp.objects.get_or_create(
-                provider="google",
-                defaults={
-                    "name": "Google OAuth",
-                    "client_id": client_id,
-                    "secret": client_secret,
-                }
-            )
-            if not created:
-                app.client_id = client_id
-                app.secret = client_secret
-                app.save()
-
-            site_obj = Site.objects.get(id=settings.SITE_ID)
-            app.sites.add(site_obj)
+        # Delete any DB-backed Google SocialApp records to prevent MultipleObjectsReturned conflict
+        # with the settings-based configuration in config/settings.py
+        SocialApp.objects.filter(provider="google").delete()
     except Exception:
         pass
