@@ -3,7 +3,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { getCurrentUser, getGoogleLoginUrl, loginUser, registerUser } from "../services/api";
 
 const initialLoginState = { email: "", password: "" };
-const initialRegisterState = { name: "", email: "", confirmEmail: "", password: "" };
+const initialRegisterState = { name: "", email: "", password: "", confirmPassword: "" };
 
 const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -148,11 +148,8 @@ export default function Login({ authUser, onAuthSuccess }) {
 
     try {
       if (mode === "register") {
-        const normalizedEmail = registerForm.email.trim().toLowerCase();
-        const normalizedConfirmEmail = registerForm.confirmEmail.trim().toLowerCase();
-
-        if (normalizedEmail !== normalizedConfirmEmail) {
-          throw new Error("Email addresses do not match");
+        if (registerForm.password !== registerForm.confirmPassword) {
+          throw new Error("Passwords do not match");
         }
       }
 
@@ -624,14 +621,14 @@ export default function Login({ authUser, onAuthSuccess }) {
 
               {mode === "register" && (
                 <div className="auth-field">
-                  <label className="auth-label" htmlFor="confirmEmail">Confirm Email Address</label>
+                  <label className="auth-label" htmlFor="confirmPassword">Confirm Password</label>
                   <input
-                    id="confirmEmail"
-                    type="email"
+                    id="confirmPassword"
+                    type="password"
                     className="auth-input"
-                    value={registerForm.confirmEmail}
-                    onChange={(event) => updateField("confirmEmail", event.target.value)}
-                    placeholder="Re-enter your email"
+                    value={registerForm.confirmPassword}
+                    onChange={(event) => updateField("confirmPassword", event.target.value)}
+                    placeholder="Confirm your password"
                     required
                   />
                 </div>
