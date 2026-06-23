@@ -12,6 +12,7 @@ const Contact = lazy(() => import("./pages/Contact"));
 const Cart = lazy(() => import("./pages/Cart"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const Login = lazy(() => import("./pages/Login"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const AdminPortal = lazy(() => import("./pages/AdminPortal"));
 const Orders = lazy(() => import("./pages/Orders"));
 
@@ -66,6 +67,10 @@ function AppLayout({
             <Route
               path="/login"
               element={<Login authUser={authUser} onAuthSuccess={handleAuthSuccess} />}
+            />
+            <Route
+              path="/auth/callback"
+              element={<AuthCallback onAuthSuccess={handleAuthSuccess} />}
             />
             <Route path="/admin" element={<AdminPortal authUser={authUser} onAuthSuccess={handleAuthSuccess} />} />
             <Route path="/admin/*" element={<AdminPortal authUser={authUser} onAuthSuccess={handleAuthSuccess} />} />

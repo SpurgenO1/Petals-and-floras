@@ -14,7 +14,7 @@ const getWindowOrigin = () => {
   if (typeof window !== "undefined" && window.location?.origin) {
     return window.location.origin;
   }
-  return "http://127.0.0.1:8000";
+  return process.env.REACT_APP_API_FALLBACK_ORIGIN || "http://127.0.0.1:8000";
 };
 
 const normalizeApiBaseUrl = (value) => {
@@ -60,10 +60,13 @@ const getDefaultApiBaseUrl = () => {
   }
 
   if (typeof window !== "undefined") {
+    if (isLoopbackHost(window.location.hostname)) {
+      return "http://127.0.0.1:8000/api/";
+    }
     return buildSameOriginApiUrl();
   }
 
-  return "http://127.0.0.1:8000/api/";
+  return process.env.REACT_APP_API_FALLBACK_BASE_URL || "http://127.0.0.1:8000/api/";
 };
 
 const API_BASE_URL = getDefaultApiBaseUrl();
@@ -338,3 +341,11 @@ export const getAdminUrlForPath = (pathname = "", search = "", hash = "") => {
   base.hash = hash || "";
   return base.toString();
 };
+
+export const getGoogleLoginUrl = () => {
+  const base = new URL(API_BASE_URL, getWindowOrigin());
+  const pathname = base.pathname.replace(/\/api\/?$/, "");
+  base.pathname = `${pathname}/accounts/google/login/`.replace(/\/{2,}/g, "/");
+  return base.toString();
+};
+

@@ -30,6 +30,8 @@ from .views import (
     logout_user,
     register_user,
     verify_email,
+    google_login_success,
+    google_login_failure,
 )
 
 urlpatterns = [
@@ -62,4 +64,7 @@ urlpatterns = [
     path("auth/login/", login_user),
     path("auth/refresh/", refresh_token),
     path("auth/logout/", logout_user),
+    path("auth/google/success/", google_login_success),
+    path("auth/google/failure/", google_login_failure),
 ]
+

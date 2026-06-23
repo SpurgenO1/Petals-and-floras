@@ -1,5 +1,8 @@
 function WhatsAppButton() {
-  const whatsappUrl = "https://wa.me/918055895353?text=Hi, I'm interested in ordering flowers.";
+  const baseWhatsAppUrl = process.env.REACT_APP_WHATSAPP_URL || "https://wa.me/918055895353";
+  const whatsappUrl = baseWhatsAppUrl.includes("?")
+    ? baseWhatsAppUrl
+    : `${baseWhatsAppUrl}?text=Hi,%20I'm%20interested%20in%20ordering%20flowers.`;
 
   return (
     <a 

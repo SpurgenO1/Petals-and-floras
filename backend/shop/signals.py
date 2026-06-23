@@ -4,7 +4,7 @@ from django.dispatch import receiver
 from pymongo.errors import PyMongoError
 
 from .delivery import get_delivery_status_label
-from .models import Feedback, Order, OrderHistory, OrderTrackingEvent, Product
+from .models import Feedback, Order, OrderHistory, OrderTrackingEvent, Product, UserProfile
 from .mongo import (
     delete_feedback_from_mongo,
     delete_product_from_mongo,
@@ -114,3 +114,57 @@ def sync_feedback_after_delete(sender, instance, **kwargs):
         delete_feedback_from_mongo(instance)
     except PyMongoError:
         pass
+
+
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    if created:
+        UserProfile.objects.get_or_create(user=instance)
+
+
+from django.db.models.signals import post_migrate
+
+@receiver(post_migrate)
+def setup_social_app_and_site(sender, **kwargs):
+    if sender.name != "shop":
+        return
+    try:
+        from django.contrib.sites.models import Site
+        from allauth.socialaccount.models import SocialApp
+        from django.conf import settings
+        import os
+
+        site = Site.objects.filter(id=settings.SITE_ID).first()
+        domain = os.environ.get("DJANGO_DEFAULT_FRONTEND_ORIGIN", "http://localhost:3000").split("//")[-1].split(":")[0]
+        if not domain:
+            domain = "localhost"
+
+        if site:
+            site.domain = domain
+            site.name = "Petals and Floras"
+            site.save()
+        else:
+            Site.objects.create(id=settings.SITE_ID, domain=domain, name="Petals and Floras")
+
+        client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+        client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+        if client_id and client_secret:
+            app, created = SocialApp.objects.get_or_create(
+                provider="google",
+                defaults={
+                    "name": "Google OAuth",
+                    "client_id": client_id,
+                    "secret": client_secret,
+                }
+            )
+            if not created:
+                app.client_id = client_id
+                app.secret = client_secret
+                app.save()
+
+            site_obj = Site.objects.get(id=settings.SITE_ID)
+            app.sites.add(site_obj)
+    except Exception:
+        pass
+
+

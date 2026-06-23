@@ -200,3 +200,15 @@ class Feedback(models.Model):
 
     def __str__(self):
         return f"Feedback #{self.id} - {self.title}"
+
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    avatar_url = models.URLField(max_length=500, blank=True, default="")
+    google_id = models.CharField(max_length=100, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Profile of {self.user.username}"
+

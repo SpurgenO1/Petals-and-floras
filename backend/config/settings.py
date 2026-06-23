@@ -71,6 +71,17 @@ def database_config_from_url(url):
             config["OPTIONS"] = {"sslmode": ssl_mode}
         return config
 
+    if scheme in {"mysql", "mariadb"}:
+        config = {
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": unquote(parsed.path.lstrip("/")),
+            "USER": unquote(parsed.username or ""),
+            "PASSWORD": unquote(parsed.password or ""),
+            "HOST": parsed.hostname or "",
+            "PORT": str(parsed.port or "3306"),
+        }
+        return config
+
     if scheme in {"sqlite", "sqlite3"}:
         database_path = unquote(parsed.path or "")
         if database_path in {"", "/"}:
@@ -80,6 +91,7 @@ def database_config_from_url(url):
         return {"ENGINE": "django.db.backends.sqlite3", "NAME": database_path}
 
     raise ValueError(f"Unsupported DATABASE_URL scheme: {scheme}")
+
 
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
@@ -95,7 +107,7 @@ ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,testserver
 if not DEBUG and not ALLOWED_HOSTS:
     raise RuntimeError("DJANGO_ALLOWED_HOSTS must be configured in production.")
 
-DEFAULT_FRONTEND_ORIGIN = "http://localhost:3000" if DEBUG else "https://petals-and-floras.vercel.app"
+DEFAULT_FRONTEND_ORIGIN = os.environ.get("DJANGO_DEFAULT_FRONTEND_ORIGIN", "http://localhost:3000" if DEBUG else "https://petals-and-floras.vercel.app")
 CORS_ALLOWED_ORIGINS = env_list("DJANGO_CORS_ALLOWED_ORIGINS", DEFAULT_FRONTEND_ORIGIN)
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", DEFAULT_FRONTEND_ORIGIN)
 if not DEBUG and not CORS_ALLOWED_ORIGINS:
@@ -404,3 +416,31 @@ LOGGING = {
         },
     },
 }
+
+if HAS_ALLAUTH:
+    SOCIALACCOUNT_PROVIDERS = {
+        "google": {
+            "APP": {
+                "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
+                "secret": os.environ.get("GOOGLE_CLIENT_SECRET", ""),
+                "key": "",
+            },
+            "SCOPE": [
+                "profile",
+                "email",
+            ],
+            "AUTH_PARAMS": {
+                "access_type": "online",
+            },
+        }
+    }
+    SOCIALACCOUNT_LOGIN_ON_GET = True
+    SOCIALACCOUNT_AUTO_SIGNUP = True
+    SOCIALACCOUNT_ADAPTER = "shop.adapters.CustomSocialAccountAdapter"
+    ACCOUNT_EMAIL_REQUIRED = True
+    ACCOUNT_UNIQUE_EMAIL = True
+    ACCOUNT_USERNAME_REQUIRED = False
+    ACCOUNT_AUTHENTICATION_METHOD = "email"
+    ACCOUNT_EMAIL_VERIFICATION = "none"
+    LOGIN_REDIRECT_URL = "/api/auth/google/success/"
+

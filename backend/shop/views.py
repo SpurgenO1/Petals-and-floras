@@ -11,7 +11,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.models import Group, User
 from django.conf import settings
 from django.core.mail import send_mail
-from django.http import JsonResponse, HttpResponseForbidden
+from django.http import JsonResponse, HttpResponseForbidden, HttpResponseRedirect
 from django.db import transaction
 from django.db.models import Sum
 from django.middleware.csrf import get_token
@@ -31,6 +31,7 @@ from rest_framework import status
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 import re
+from allauth.socialaccount.models import SocialAccount
 
 from .catalog import CATALOG_PRODUCTS
 from .delivery import (
@@ -44,7 +45,7 @@ from .delivery import (
     parse_delivery_date,
 )
 from .mongo import get_orders_collection, get_products_collection, sync_product_to_mongo
-from .models import Feedback, Order, OrderHistory, OrderTrackingEvent, Product
+from .models import Feedback, Order, OrderHistory, OrderTrackingEvent, Product, UserProfile
 from .serializers import (
     AuthUserSerializer,
     FeedbackCreateSerializer,
@@ -191,6 +192,13 @@ def append_tracking_event(order, status_code, description=""):
 
 
 def serialize_auth_user(user):
+    avatar_url = ""
+    try:
+        if hasattr(user, "profile") and user.profile:
+            avatar_url = user.profile.avatar_url
+    except Exception:
+        pass
+
     serializer = AuthUserSerializer(
         {
             "id": user.id,
@@ -200,9 +208,11 @@ def serialize_auth_user(user):
             "is_active": user.is_active,
             "is_staff": user.is_staff,
             "is_superuser": user.is_superuser,
+            "avatar_url": avatar_url,
         }
     )
     return serializer.data
+
 
 
 def build_frontend_login_url(query_string=""):
@@ -1768,3 +1778,43 @@ def csrf_failure(request, reason=""):
         )
 
     return HttpResponseForbidden("CSRF verification failed. Request aborted.")
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def google_login_success(request):
+    if not request.user.is_authenticated:
+        return redirect(build_frontend_login_url("error=google_auth_failed"))
+
+    user = request.user
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+
+    social_account = SocialAccount.objects.filter(user=user, provider="google").first()
+    if social_account:
+        extra_data = social_account.extra_data
+        avatar_url = extra_data.get("picture", "")
+        google_id = social_account.uid
+
+        updated = False
+        if google_id and profile.google_id != google_id:
+            profile.google_id = google_id
+            updated = True
+        if avatar_url and profile.avatar_url != avatar_url:
+            profile.avatar_url = avatar_url
+            updated = True
+        if updated:
+            profile.save()
+
+    base_url = (settings.FRONTEND_BASE_URL or "").rstrip("/")
+    target_url = f"{base_url}/auth/callback?status=success" if base_url else "/auth/callback?status=success"
+
+    response = HttpResponseRedirect(target_url)
+    set_auth_cookies(response, user)
+    return response
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def google_login_failure(request):
+    return redirect(build_frontend_login_url("error=google_auth_failed"))
+

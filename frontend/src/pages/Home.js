@@ -262,7 +262,7 @@ function Home() {
           >
             <h3>Visit Our Shop</h3>
             <p style={{ opacity: 0.7, marginBottom: "2rem" }}>Come experience the fragrance and beauty of fresh flowers in person.</p>
-            <a href="https://wa.me/918055895353" className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }}>
+            <a href={process.env.REACT_APP_WHATSAPP_URL || "https://wa.me/918055895353"} className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }}>
               WhatsApp Us Now
             </a>
           </motion.div>

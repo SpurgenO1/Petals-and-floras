@@ -232,6 +232,8 @@ class AuthUserSerializer(serializers.Serializer):
     is_active = serializers.BooleanField(read_only=True)
     is_staff = serializers.BooleanField(read_only=True)
     is_superuser = serializers.BooleanField(read_only=True)
+    avatar_url = serializers.CharField(read_only=True, required=False)
+
 
 
 class RegisterSerializer(serializers.Serializer):

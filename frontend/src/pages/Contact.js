@@ -176,9 +176,9 @@ export default function Contact({ authUser = null }) {
   const infoCards = [
     { icon: "Phone", label: "Phone / WhatsApp", value: "+91 80558 95353", href: "tel:+918055895353", delay: 0 },
     { icon: "Mail", label: "Email", value: "petalsandflora@gmail.com", href: "mailto:petalsandflora@gmail.com", delay: 0.1 },
-    { icon: "City", label: "City", value: "Chennai, Tamil Nadu", href: "https://www.google.com/maps?q=12.9272616,80.1131223&z=17&hl=en", delay: 0.2 },
-    { icon: "Chat", label: "WhatsApp", value: "Chat with us instantly", href: "https://wa.me/918055895353", delay: 0.3 },
-    { icon: "Insta", label: "Instagram", value: "@petalsandflora2725", href: "https://www.instagram.com/petalsandflora2725?igsh=a292dGx0bHBmZ3U5", delay: 0.4 },
+    { icon: "City", label: "City", value: "Chennai, Tamil Nadu", href: process.env.REACT_APP_MAPS_URL || "https://www.google.com/maps?q=12.9272616,80.1131223&z=17&hl=en", delay: 0.2 },
+    { icon: "Chat", label: "WhatsApp", value: "Chat with us instantly", href: process.env.REACT_APP_WHATSAPP_URL || "https://wa.me/918055895353", delay: 0.3 },
+    { icon: "Insta", label: "Instagram", value: "@petalsandflora2725", href: process.env.REACT_APP_INSTAGRAM_URL || "https://www.instagram.com/petalsandflora2725?igsh=a292dGx0bHBmZ3U5", delay: 0.4 },
   ];
 
   function handleChange(event) {
@@ -778,8 +778,8 @@ export default function Contact({ authUser = null }) {
                 <div style={{ marginTop: "1.4rem" }}>
                   <p className="cn-hours-title" style={{ marginBottom: "0.8rem" }}>Find Us Online</p>
                   <div className="cn-socials">
-                    <a href="https://wa.me/918055895353" className="cn-social-btn" target="_blank" rel="noreferrer">WhatsApp</a>
-                    <a href="https://www.instagram.com/petalsandflora2725?igsh=a292dGx0bHBmZ3U5" className="cn-social-btn" target="_blank" rel="noreferrer">Instagram</a>
+                    <a href={process.env.REACT_APP_WHATSAPP_URL || "https://wa.me/918055895353"} className="cn-social-btn" target="_blank" rel="noreferrer">WhatsApp</a>
+                    <a href={process.env.REACT_APP_INSTAGRAM_URL || "https://www.instagram.com/petalsandflora2725?igsh=a292dGx0bHBmZ3U5"} className="cn-social-btn" target="_blank" rel="noreferrer">Instagram</a>
                     <a href="mailto:petalsandflora@gmail.com" className="cn-social-btn">Email</a>
                     <a href="tel:+918055895353" className="cn-social-btn">Call</a>
                   </div>
@@ -799,7 +799,7 @@ export default function Contact({ authUser = null }) {
                   </p>
                 </div>
                 <a
-                  href="https://www.google.com/maps?q=12.9272616,80.1131223&z=17&hl=en"
+                  href={process.env.REACT_APP_MAPS_URL || "https://www.google.com/maps?q=12.9272616,80.1131223&z=17&hl=en"}
                   target="_blank"
                   rel="noreferrer"
                   className="cn-social-btn"

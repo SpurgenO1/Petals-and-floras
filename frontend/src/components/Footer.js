@@ -70,7 +70,7 @@ function Footer() {
       <div style={{ marginTop: "3rem", paddingTop: "2rem", borderTop: "1px solid rgba(255,255,255,0.1)", opacity: 0.5, fontSize: "0.9rem" }}>
         &copy; {new Date().getFullYear()} Designed and Developed by{" "}
         <a
-          href="https://www.linkedin.com/in/d-narean-raj-020b0432a"
+          href={process.env.REACT_APP_DEV1_LINKEDIN || "https://www.linkedin.com/in/d-narean-raj-020b0432a"}
           target="_blank"
           rel="noopener noreferrer"
           style={{ color: "inherit", textDecoration: "underline" }}
@@ -79,7 +79,7 @@ function Footer() {
         </a>{" "}
         &amp;{" "}
         <a
-          href="https://www.linkedin.com/in/spurgen/"
+          href={process.env.REACT_APP_DEV2_LINKEDIN || "https://www.linkedin.com/in/spurgen/"}
           target="_blank"
           rel="noopener noreferrer"
           style={{ color: "inherit", textDecoration: "underline" }}
